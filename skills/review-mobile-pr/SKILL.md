@@ -75,34 +75,23 @@ Invoke with a PR URL or number, optionally naming a posting mode to skip the pro
 ```
 Flags combine freely — e.g. `--lite --apply-safe-fixes` runs the narrow pass set and still applies any suggestion-grade fix that survives it.
 
-## Platform checklists (resolve before reviewing)
-
-This skill carries no built-in **platform-API** checklists or deprecation tables of its own — it delegates that knowledge to whichever platform skills are installed, so it stays current without living in this file:
-
-| Diff touches | Skill source |
-|---|---|
-| Android/Kotlin/Compose/Gradle | https://github.com/android/skills and https://github.com/chrisbanes/skills |
-| Swift/SwiftUI/UIKit/Xcode | https://github.com/AvdLee/SwiftUI-Agent-Skill |
-| Firebase (any platform) | https://github.com/firebase/agent-skills |
-| Kotlin/KMP (shared/multiplatform source sets) | https://github.com/Kotlin/kotlin-agent-skills |
-
-For each platform present in the diff:
-
-1. **Check installed skills first.** Look at your own available-skills listing for one matching the platform (e.g. an Android Compose/lint skill, `swiftui-expert-skill`, a `firebase-*` skill, a `kotlin-tooling-*`/KMP skill). If one is installed, use it — invoke it (or read its bundled reference material) for that platform's checklist and deprecation knowledge instead of anything in this file.
-2. **If nothing installed matches**, tell the user once, in the pre-flight header or summary: *"No local skill found for <platform> — install it from <repo URL above> for full-checklist coverage."* Then, for this review run only, fetch that platform's checklist directly from the repo above (raw file via `WebFetch`, or `gh repo clone`/`git`, whichever is faster) so the review isn't degraded just because the skill isn't installed yet.
-3. **Anything outside these four repos**, or a checklist dimension none of them cover (general test-quality standards) — there's no external skill for this, so fall back to your own judgment as a senior engineer.
-
-**Exception — `references/engineering-excellence.md`, still bundled in this skill.** This one *is* read locally, unconditionally, regardless of platform — see the reference-files line below. Code smells, dead/unused code, duplication, SOLID, naming, PR scope & hygiene, and documentation are this skill's own cross-cutting review criteria, not a specific platform's API surface — none of the four repos above cover them, and unlike a deprecation table this content doesn't go stale on a platform's release cadence, so it stays maintained here instead of resolved externally.
-
-Pass each review pass whatever it needs to use this — an installed skill's name, the fetched checklist content/URL, or the absolute path to `references/engineering-excellence.md` — so a dispatched pass (a fresh agent with no context of this conversation) knows where its knowledge comes from.
-
-## Reference files (bundled)
+## Reference files (bundled — always the floor)
 
 | File | When to read it |
 |---|---|
+| `references/android.md` | Any Android/Kotlin/Compose/Gradle file in the diff. Full checklist: architecture, Compose, coroutines, lifecycle, DI, security, performance, testing, Kotlin quality, resources, accessibility, build hygiene — **plus the Android 2026 deprecation table.** |
+| `references/ios.md` | Any Swift/SwiftUI/UIKit/Xcode file in the diff. Full checklist: Swift 6 concurrency, SwiftUI state, UIKit lifecycle, memory management, security, testing, Swift quality — **plus the iOS 2026 deprecation table.** |
+| `references/kmp.md` | Any file under `kmp/` or in shared/multiplatform source sets. Source-set hygiene, expect/actual, KMP-safe concurrency, serialization, Ktor, Swift interop, KMP testing and Gradle rules. |
 | `references/engineering-excellence.md` | Every PR, regardless of platform. Code smells, dead/unused code, SOLID, naming, error handling, PR scope & hygiene, documentation, test quality standards. |
 
-This file lives in this skill's own `references/` directory, right alongside this `SKILL.md`. Resolve the actual absolute path yourself from wherever this `SKILL.md` file was loaded from (visible in your own context — typically `~/.claude/skills/review-mobile-pr/` for a global install, or `<project>/.claude/skills/review-mobile-pr/` for a project-local one). You don't need to paste its contents into dispatched prompts — pass the resolved **absolute path** to whichever review pass needs it; a dispatched pass is a fresh agent with no idea where this skill lives, so a relative path or bare filename will fail its `Read` call.
+These files live in this skill's own `references/` directory, right alongside this `SKILL.md` — e.g. `references/android.md`. Resolve the actual absolute path yourself from wherever this `SKILL.md` file was loaded from (visible in your own context — typically `~/.claude/skills/review-mobile-pr/` for a global install, or `<project>/.claude/skills/review-mobile-pr/` for a project-local one). Read only the files matching the platforms actually present in the diff — plus `engineering-excellence.md`, which always applies regardless of platform. You don't need to paste their contents into dispatched prompts — pass each review pass the resolved **absolute path(s)** to the reference files it needs; a dispatched pass is a fresh agent with no idea where this skill lives, so a relative path or bare filename will fail its `Read` call. Every general-purpose agent has `Read` access and reads them itself.
+
+## External platform skills (extra depth, optional)
+
+The reference files above are self-contained — a review is fully covered with nothing else installed. Beyond them, check your own available-skills listing for anything that also matches a platform present in the diff: well-known examples are `android/skills` or `chrisbanes/skills` (or any other Android/Kotlin/Compose skill) for Android, `AvdLee/SwiftUI-Agent-Skill` (or any other SwiftUI/UIKit/Swift skill) for iOS, `Kotlin/kotlin-agent-skills` (or any other Kotlin-tooling/KMP skill) for KMP, and a `firebase/agent-skills`-family skill if the diff touches a Firebase SDK. This isn't an exhaustive list — use whatever's actually installed for the platform(s) this diff touches, named or not.
+
+- **A matching skill is installed:** name it to the relevant review pass(es) alongside the bundled reference file's path. The pass consults both — the installed skill is **additive depth on top of the reference file, never a replacement for it.** The bundled file stays the floor every review meets; an installed skill only raises the ceiling for that run.
+- **Nothing installed matches a platform in the diff:** proceed with that platform's bundled reference file alone (full coverage, just without the extra depth an installed skill would add) — or, for a platform with no bundled reference at all (Firebase), fall back to your own judgment as a senior engineer. Either way, add that platform to a running "no skill installed for" list. **Don't surface this per-pass or mid-review**; step 9 prints it once, aggregated across every platform that had no match, as a single install hint at the very end. This is the one place in the workflow that list is read.
 
 ## Workflow
 
@@ -136,18 +125,18 @@ Show header (with the resolved posting mode; append ` · lite` when `--lite` was
 
 ### 2. Detect platform context
 
-Map each changed path to a platform so the right checklist applies:
+Map each changed path to a platform so the right reference file and checklist apply:
 
-| Path / extension pattern | Platform |
-|---|---|
-| `*.kt`, `*.kts` under `android/`, `app/`, or Android modules | Android |
-| `*.swift`, `*.xcodeproj`, `*.xcconfig`, `Podfile`, `Package.swift` | iOS |
-| `kmp/…/commonMain`, `commonTest`, `androidMain`, `iosMain`, `engine-ios-bindings` | KMP (plus Android/iOS for the respective `actual`s) |
-| `*.gradle.kts`, `libs.versions.toml`, `gradle.properties` | Build (Android/KMP) |
-| Any file, any platform | Firebase, if it imports/configures a Firebase SDK |
-| Every file, regardless of the above | Cross-cutting — `references/engineering-excellence.md` applies unconditionally |
+| Path / extension pattern | Platform | Reference |
+|---|---|---|
+| `*.kt`, `*.kts` under `android/`, `app/`, or Android modules | Android | `references/android.md` |
+| `*.swift`, `*.xcodeproj`, `*.xcconfig`, `Podfile`, `Package.swift` | iOS | `references/ios.md` |
+| `kmp/…/commonMain`, `commonTest`, `androidMain`, `iosMain`, `engine-ios-bindings` | KMP | `references/kmp.md` (plus android/ios refs for the respective actuals) |
+| `*.gradle.kts`, `libs.versions.toml`, `gradle.properties` | Build (Android/KMP) | build-hygiene sections of `android.md` / `kmp.md` |
+| Any file, any platform | Firebase, if it imports/configures a Firebase SDK | no bundled reference — external skill only, see "External platform skills" |
+| CI workflows, scripts, docs | Cross-cutting | `engineering-excellence.md` only |
 
-Resolve each detected platform against "Platform checklists" above **now**, before starting the review passes — installed skill, fetched-fallback, or judgment for the platform-specific rows; `engineering-excellence.md` always, on every diff, in addition. Skip categories with zero relevance to the file type.
+Read the matching reference files **now**, before starting the review passes. For each detected platform, also check for a matching installed skill per "External platform skills" above — note its name if found, or add the platform to the "no skill installed for" list if not (Firebase included, since it has no bundled reference to fall back on). Skip categories with zero relevance to the file type.
 
 ### 3. Dispatch the review passes
 
@@ -157,8 +146,8 @@ Delegate the labor-intensive analysis to the review passes defined in "Review pa
 
 - **PR intent** — one line stating what the change is supposed to do and its happy path, from the PR title/description/linked ticket. You cannot judge "wrong" or "forgotten" without knowing "intended," and every pass needs this framing.
 - **The full PR diff** (from `gh pr diff` in pre-flight) and the changed-files list.
-- **The platform checklist source(s) resolved in step 2** — for each platform present in the diff, name the installed skill to use, or (if none was installed) the fetched checklist content/URL from "Platform checklists" above.
-- **The absolute path to `references/engineering-excellence.md`**, unconditionally — it always applies, independent of platform (see "Reference files" above).
+- **Absolute path(s) to the relevant reference file(s)** — the platform file(s) from step 2's platform detection (`android.md` / `ios.md` / `kmp.md`), plus `engineering-excellence.md` unconditionally for the Code-Quality Reviewer (it always applies, independent of platform — see the reference-files table above). Each pass reads these itself via its `Read` tool, so pass paths, not pasted excerpts.
+- **The name of any installed platform skill resolved in step 2** for this diff's platform(s), if one was found — told to the relevant pass as an *extra* source to consult alongside its reference file, never instead of it.
 - **An output-format request**: *"Return findings as a plain list, one per line, in exactly this shape: `<file>:<line> — <severity> — <confidence: HIGH/MEDIUM/LOW> — <short title> — <issue and why it matters> — <suggested fix>`. Confidence is your own certainty in this specific finding — HIGH: verified against the actual repo beyond the diff (grepped call sites, read the referenced symbol) or self-evident from the diff alone; MEDIUM: a plausible reading of the diff you didn't independently confirm; LOW: a pattern-matched guess you couldn't verify. Use each pass's own severity scale, defined in the block that follows."* This lets step 5 fold results mechanically into the Comment Format in step 8 without re-interpretation, and lets it filter on confidence before cross-checking.
 
 Putting this block first, byte-identical across all dispatched prompts (same wording, same diff, same paths, same order), means the diff — the largest chunk of tokens in every one of these prompts — sits in a shared, cacheable prefix instead of being repeated as one-off content per pass. On a large diff this is the single biggest cost lever available at dispatch time; don't reorder it back to "pass block, then context" even for a single-pass tweak.
@@ -188,7 +177,7 @@ The deprecation pass is dispatched separately in step 4, since it needs the depr
 
 ### 4. Deprecation & modernity pass
 
-Skip this step entirely under `--lite` (see "Review mode" above). Otherwise, dispatch the Deprecation Scanner pass (in the same parallel batch as step 3, or right after — either is fine) whenever the diff touches Android and/or iOS files. Give it the diff, the changed-files list, and the platform checklist source(s) resolved in step 2 — an installed Android/iOS skill and/or its fetched-fallback content, per "Platform checklists" above. It flags newly-added usage of anything deprecated, removed, or superseded as of 2026 (Android 16/API 36, Swift 6, iOS 17–26), `WebSearch`ing anything the resolved checklist source doesn't cover or that it doesn't recognize, rather than guessing. Skip this dispatch entirely for a pure-KMP-common diff with no `androidMain`/`iosMain` files touched.
+Skip this step entirely under `--lite` (see "Review mode" above). Otherwise, dispatch the Deprecation Scanner pass (in the same parallel batch as step 3, or right after — either is fine) whenever the diff touches Android and/or iOS files. Give it the diff, the changed-files list, the absolute path(s) to `android.md` and/or `ios.md` — whichever platform(s) apply — and the name of any installed Android/iOS skill resolved in step 2, as an extra source alongside the reference file. It reads the deprecation tables itself and flags newly-added usage of anything deprecated, removed, or superseded as of 2026 (Android 16/API 36, Swift 6, iOS 17–26), web-searching anything it doesn't recognize rather than guessing. Skip this dispatch entirely for a pure-KMP-common diff with no `androidMain`/`iosMain` files touched.
 
 ### 5. Aggregate findings
 
@@ -334,7 +323,11 @@ Review URL: https://github.com/<owner>/<repo>/pull/<number>
 The review is pending. Open the PR in GitHub to inspect, edit,       [Draft mode]
 or submit your comments when ready.
 The review is live — comments are already visible on the PR.        [Live mode]
+
+💡 For deeper platform coverage next run, install: <platform>: <skill source>, <platform>: <skill source>, ...   [only if step 2's "no skill installed for" list is non-empty]
 ```
+
+That last line is the **one and only** place a missing-skill hint appears — aggregated across every platform on the list, printed once. Never print a per-platform or per-pass version of it earlier in the run.
 
 ## Fallback (API call fails)
 
@@ -358,7 +351,7 @@ Full prompt text for each pass named in step 3/4's tables. When dispatching, put
 
 You are a senior mobile engineer (Android/Kotlin, iOS/Swift, KMP) doing the highest-value pass of a PR review: finding the bugs that actually reach production. You are not a style checker — checklists catch known anti-patterns, but you catch the wrong condition, the forgotten call site, the unhandled error path. Do this pass before, and independently of, any code-smell or style review. You run two lenses in one pass — general correctness, and a dedicated adversarial lens on error handling specifically, since that's where correctness reviews most often go soft.
 
-Use whatever platform checklist source(s) you're given — an installed skill or fetched content — for the platform's architecture, concurrency, and lifecycle rules; ignore any deprecation table in there, since deprecations are a separate pass. If no source was given for this diff's platform, apply your own judgment as a senior mobile engineer instead.
+Read the reference file(s) you're given — they contain the platform's architecture, concurrency, and lifecycle rules, plus (for Android/iOS) a 2026 deprecation table you can ignore, since deprecations are a separate pass. If you were also given the name of an installed platform skill, consult it too for anything more specific or current than the reference file — additive depth, not a replacement.
 
 **Step 1 — Establish intent.** State in one line what the change is supposed to do and what its happy path is. You cannot judge "wrong" or "forgotten" without knowing "intended."
 
@@ -396,11 +389,11 @@ Use whatever platform checklist source(s) you're given — an installed skill or
 
 You are a senior mobile engineer running the hygiene and excellence pass of a PR review — after correctness bugs and error handling have already been reviewed separately. Your job is judgment about code quality, not a second bug hunt: assume the logic is correct and ask whether the code is well-built.
 
-Read `references/engineering-excellence.md` before starting — it's the concrete checklist you run for code smells, dead/unused code, duplication, SOLID, naming, PR scope & hygiene, and documentation; its Part 1 (code smell scan) and Part 2 (software-engineering excellence) apply in full. Its Error handling and Test quality sections are backstop only — the Bug Hunter's error-handling lens and the Test Analyzer pass own that territory, so skip acting on them here unless you spot something structural those passes wouldn't catch (e.g. wrong source-set placement for a test file).
+Read every reference file you're given before starting. `engineering-excellence.md` is the concrete checklist you run — its Part 1 (code smell scan) and Part 2 (software-engineering excellence) apply in full; its Error handling and Test quality sections are backstop only (see their own notes in that file) — the Bug Hunter's error-handling lens and the Test Analyzer pass own that territory, so skip acting on them here unless you spot something structural those passes wouldn't catch (e.g. wrong source-set placement for a test file).
 
-**Stranded artifacts from incomplete deletions** (this pass's own addition): when a hunk deletes a field/param/branch, check whether everything *about* it went with it — multi-line comments where only some lines carry a `-`, a doc comment whose subject was removed but whose preamble wasn't, a dangling "see also" to a deleted symbol. Cross-check sibling files touched the same way in this diff. Label these findings **Nit**.
+**Stranded artifacts from incomplete deletions** (this pass's own addition, not in that file): when a hunk deletes a field/param/branch, check whether everything *about* it went with it — multi-line comments where only some lines carry a `-`, a doc comment whose subject was removed but whose preamble wasn't, a dangling "see also" to a deleted symbol. Cross-check sibling files touched the same way in this diff. Label these findings **Nit**.
 
-**Platform checklist backstop:** for whatever platform checklist source(s) you were given (an installed skill, or fetched content — see "Platform checklists"), work through its non-deprecation, non-testing anti-patterns as a backstop for what the judgment above doesn't cover: architecture/MVVM-MVI, Compose or SwiftUI/UIKit patterns, coroutines/Swift-concurrency hygiene, DI scoping, security, performance/memory, navigation, resources/localisation, accessibility, dependency/build hygiene, KMP source-set hygiene and interop. Skip a category with zero relevance to the file type, and skip this backstop entirely if no source was given for this diff's platform.
+**Platform checklist backstop:** work through the non-deprecation, non-testing sections of the platform reference file(s) you were given as a backstop for anti-patterns `engineering-excellence.md` doesn't cover: architecture/MVVM-MVI, Compose or SwiftUI/UIKit patterns, coroutines/Swift-concurrency hygiene, DI scoping, security, performance/memory, navigation, resources/localisation, accessibility, dependency/build hygiene, KMP source-set hygiene and interop. If you were also given the name of an installed platform skill, use it too as additive depth on the same categories. Skip a category with zero relevance to the file type.
 
 **Severity scale** — one line per finding, `+` lines only (Nits included per above): CRITICAL = a security hole (secret in source, disabled cert pinning, insecure WebView config) or a build/dependency change that will break the build or ship broken. HIGH = a real security/performance/accessibility gap on a high-traffic path, or a SOLID/architecture violation likely to cause a near-term bug. MEDIUM = a code smell, duplication, or checklist violation with real but non-urgent cost. LOW = naming, minor duplication, or a style/PR-scope observation. Prefix the title with `Nit:` for optional-polish findings regardless of the LOW/MEDIUM line. Don't manufacture nitpicks to look thorough.
 
@@ -409,12 +402,12 @@ Read `references/engineering-excellence.md` before starting — it's the concret
 You are a mobile platform-modernity specialist. Deprecation knowledge moves fast and generic code review misses it — that's your entire reason to exist as a separate pass from bug-hunting and code-quality review. You track what's deprecated, superseded, or outright removed on Android and iOS as of 2026.
 
 **Process:**
-1. **Use the platform checklist source(s) you were given** (an installed Android/iOS skill, or fetched content — see "Platform checklists") for deprecation/platform-change knowledge: Android 16/17 behavior changes, Compose/AndroidX supersessions, Swift 6 concurrency shifts, and SwiftUI/UIKit/Foundation supersessions — plus real-world context (store submission deadlines, target-SDK requirements).
-2. **Scan every `+` line** of the diff for newly-added usage of anything that source flags. Only flag *new* usage introduced by this diff — never pre-existing code the diff didn't touch.
-3. **If the diff uses a platform API you don't recognize, the resolved source doesn't cover it, or you're unsure whether it's been deprecated since that source was last updated, use `WebSearch` before flagging or before staying silent.** Deprecation status changes fast; don't rely solely on a checklist when something looks unfamiliar or version-sensitive. If no checklist source was given for this diff's platform at all, `WebSearch` is your primary tool for this pass, not a fallback.
-4. Assign severity recalibrated by real-world impact: CRITICAL — the API is removed/rejected at the app's target SDK, or causes a guaranteed crash/store rejection (e.g. `UIWebView`, a `PendingIntent` missing `FLAG_IMMUTABLE`). HIGH — deprecated with a hard migration deadline (store policy, SDK mandate, required-reason API without a privacy-manifest entry). MEDIUM — superseded by a strictly better replacement with no hard deadline (e.g. `collectAsState()` → `collectAsStateWithLifecycle()`, `ObservableObject` → `@Observable`). LOW — cosmetic/ergonomic supersession (e.g. `PreviewProvider` → `#Preview`, `foregroundColor` → `foregroundStyle`).
+1. **Read the deprecation table(s)** in the reference file(s) you were given (`android.md` § "Deprecations & platform changes" — note it has separate tables for API 36 and the newer API 37 behavior changes, read both — `ios.md` § "Deprecations & platform changes"). These encode Android 16/17 behavior changes, Compose/AndroidX supersessions, Swift 6 concurrency shifts, and SwiftUI/UIKit/Foundation supersessions — plus real-world context (store submission deadlines, target-SDK requirements). If you were also given the name of an installed Android/iOS skill, cross-check against it too as additive, more-current depth.
+2. **Scan every `+` line** of the diff for newly-added usage of anything in those tables. Only flag *new* usage introduced by this diff — never pre-existing code the diff didn't touch.
+3. **If the diff uses a platform API you don't recognize, or you're unsure whether it's been deprecated since the reference file was written, use `WebSearch` before flagging or before staying silent.** Deprecation status changes between the reference file's last update and today; don't rely solely on the table when something looks unfamiliar or version-sensitive.
+4. Assign severity per the table's own guidance, recalibrated by real-world impact: CRITICAL — the API is removed/rejected at the app's target SDK, or causes a guaranteed crash/store rejection (e.g. `UIWebView`, a `PendingIntent` missing `FLAG_IMMUTABLE`). HIGH — deprecated with a hard migration deadline (store policy, SDK mandate, required-reason API without a privacy-manifest entry). MEDIUM — superseded by a strictly better replacement with no hard deadline (e.g. `collectAsState()` → `collectAsStateWithLifecycle()`, `ObservableObject` → `@Observable`). LOW — cosmetic/ergonomic supersession (e.g. `PreviewProvider` → `#Preview`, `foregroundColor` → `foregroundStyle`).
 
-**What NOT to flag**: pre-existing usage the diff doesn't touch; a migration explicitly out of scope per the resolved source's own notes; anything the resolved source marks as "acceptable at true legacy boundaries" unless the diff is clearly dodging a fix rather than bridging one.
+**What NOT to flag**: pre-existing usage the diff doesn't touch; a migration explicitly out of scope per the reference file's own notes; anything the reference file marks as "acceptable at true legacy boundaries" unless the diff is clearly dodging a fix rather than bridging one.
 
 **Output format note**: write the severity as the plain word, not an emoji — step 4 above already defines each tier. If nothing in the diff matches the tables, say so in one line.
 

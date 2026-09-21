@@ -18,24 +18,24 @@ Reviews Kotlin/Jetpack Compose/Gradle, Swift/SwiftUI/UIKit, and KMP code — inc
   | Comment Analyzer | Comment/doc accuracy, stranded artifacts from incomplete deletions |
   | Type-Design Analyzer | Type encapsulation and invariant expression (Kotlin sealed classes/data classes, Swift structs/enums/protocols) |
 
-Every pass draws on a platform-API checklist matching the diff — resolved from whichever platform skill you have installed (see "Depends on" below), or fetched from its source repo for the run if it isn't installed yet — plus one bundled, cross-cutting checklist (`engineering-excellence.md`, ships with this skill) for code smells, dead code, SOLID, naming, PR hygiene, and docs, dimensions no platform repo owns.
+Every pass reads a platform reference checklist matching the diff — `android.md`, `ios.md`, or `kmp.md` — the last of which includes a dedicated **Compose Multiplatform** section (shared Composables, `expect`/`actual` UI, CMP resources, cross-platform navigation, iOS `ComposeUIViewController` embedding), plus one bundled, cross-cutting checklist (`engineering-excellence.md`) for code smells, dead code, SOLID, naming, PR hygiene, and docs.
 
-No separate agent files — every review pass's prompt ships inline in this one skill — but fast-moving platform-API knowledge is intentionally *not* bundled here; it's delegated to the skill repos above so it stays current. For a genuinely small, low-risk diff (a typo fix, a comment-only edit), it may review directly instead of dispatching all 6 passes — same findings, less overhead.
+No separate agent files and no external dependency beyond the GitHub CLI — everything this skill needs, including every review pass's prompt and every platform reference file, ships inline in this one skill; a review is fully covered with nothing else installed. For a genuinely small, low-risk diff (a typo fix, a comment-only edit), it may review directly instead of dispatching all 6 passes — same findings, less overhead.
 
 Three cost tiers, from cheapest to most thorough: the tiny-diff shortcut above (zero dispatch, always wins when it applies), `--lite` (2 passes — Bug Hunter + Code-Quality Reviewer only, see below), and the full 6-pass dispatch (the default for anything that isn't tiny).
 
-## Depends on
+## Optional: deeper platform coverage
 
-This skill carries no platform-API knowledge of its own — it's just the orchestrator, the 6 pass prompts, and one cross-cutting checklist (`engineering-excellence.md`). Platform-API checklists and deprecation tables come from whichever of these you have installed as skills; install the ones matching your stack for full coverage:
+The bundled reference files above are the floor — nothing extra is required. If you also have a platform-specific skill installed, this skill layers it in as **extra depth on top of the bundled checklist, never a replacement**:
 
-| Platform | Install from |
+| Platform | Example skills |
 |---|---|
-| Android/Kotlin/Compose/Gradle | [`android/skills`](https://github.com/android/skills), [`chrisbanes/skills`](https://github.com/chrisbanes/skills) |
-| Swift/SwiftUI/UIKit/Xcode | [`AvdLee/SwiftUI-Agent-Skill`](https://github.com/AvdLee/SwiftUI-Agent-Skill) |
-| Firebase (any platform) | [`firebase/agent-skills`](https://github.com/firebase/agent-skills) |
-| Kotlin/KMP | [`Kotlin/kotlin-agent-skills`](https://github.com/Kotlin/kotlin-agent-skills) |
+| Android/Kotlin/Compose/Gradle | [`android/skills`](https://github.com/android/skills), [`chrisbanes/skills`](https://github.com/chrisbanes/skills), or any other Android/Compose skill you have installed |
+| Swift/SwiftUI/UIKit/Xcode | [`AvdLee/SwiftUI-Agent-Skill`](https://github.com/AvdLee/SwiftUI-Agent-Skill), or any other SwiftUI/UIKit skill |
+| Firebase (any platform) | [`firebase/agent-skills`](https://github.com/firebase/agent-skills) — Firebase has no bundled reference of its own, so this is the only source for it |
+| Kotlin/KMP | [`Kotlin/kotlin-agent-skills`](https://github.com/Kotlin/kotlin-agent-skills), or any other Kotlin-tooling/KMP skill |
 
-None of these are hard requirements — if one isn't installed for a platform your diff touches, the review fetches that repo's checklist for the run instead and tells you to install it for next time. Installing them just makes every run cheaper and faster.
+Nothing installed for a platform your diff touches? The review proceeds on the bundled reference alone, and prints one combined hint at the very end suggesting what to install for next time — never scattered through the review itself.
 
 ## Install
 
