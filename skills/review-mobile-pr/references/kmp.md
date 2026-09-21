@@ -88,14 +88,6 @@ Applies to shared Composables in `commonMain` that render on both Android and iO
 - `suspend` functions exposed to Swift use SKIE/KMP-NativeCoroutines or a callback wrapper — raw `suspend` is not ergonomically callable from Swift
 - No Kotlin `object` singletons holding mutable state shared across threads without concurrency protection
 
-## KMP testing
-
-- New common logic tested in `commonTest` — not only in `androidTest`/JVM (which validates one target)
-- `kotlinx.coroutines.test.runTest` — not `runBlocking` (JVM-only, unavailable in `commonTest`)
-- Platform `actual`s tested in their platform test source set where behavior differs
-- No `java.io.*` or `androidx.test.*` in `commonTest` — breaks the iOS build
-- `kotlin.test.*` annotations (`@Test`, `@BeforeTest`, `@AfterTest`) — not JUnit annotations in common code
-
 ## KMP build / Gradle hygiene
 
 - New KMP dependencies scoped to the right source set (`commonMain.dependencies { }`, `androidMain…`) — not plain `implementation` which targets only one platform

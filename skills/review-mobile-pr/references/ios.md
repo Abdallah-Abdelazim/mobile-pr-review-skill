@@ -22,10 +22,9 @@ If an iOS/Swift platform skill is installed in your environment — `AvdLee/Swif
 12. [Background tasks (BGTaskScheduler)](#background-tasks-bgtaskscheduler)
 13. [Push & local notifications](#push--local-notifications)
 14. [Swift macros](#swift-macros)
-15. [Testing](#testing)
-16. [Swift quality](#swift-quality)
-17. [Localisation & accessibility](#localisation--accessibility)
-18. [Project / build hygiene](#project--build-hygiene)
+15. [Swift quality](#swift-quality)
+16. [Localisation & accessibility](#localisation--accessibility)
+17. [Project / build hygiene](#project--build-hygiene)
 
 ---
 
@@ -181,15 +180,6 @@ The compiler catches many data races, but reviews still catch design errors the 
 - Custom macro expansions follow this file's other rules just like hand-written code — a macro that generates a force-unwrap, a retain cycle, or a `Sendable`-unsafe capture is worse than the equivalent hand-written bug because it's invisible at the call site
 - A PR adding or changing a macro's expansion reviewed via its expanded output (Xcode's "Expand Macro," or the compiler's generated-code diagnostic), not approved on the macro definition's intent alone
 - Property-wrapper-style macros (`@Model`, `@Observable`, `@AppStorage`) not stacked in combinations the macro isn't documented to support — undefined interactions between macros are a common source of silent data loss or lost observation
-
-## Testing
-
-- New logic has unit tests; async code tested with `async` test functions — no `XCTestExpectation` gymnastics where `await` suffices, no sleeps
-- Swift Testing (`@Test`, `#expect`, `#require`) for new pure-Swift test targets; parameterized tests over copy-pasted cases
-- `@MainActor` on tests exercising main-actor-isolated types
-- Test doubles injected via protocols/initializers — no live network in unit tests
-- Tests actually exercise the code under test: verify the test calls the function/fires the event it claims to test
-- Snapshot/screenshot tests follow the project's established base classes and helpers — scan existing tests before approving new structure
 
 ## Swift quality
 

@@ -16,14 +16,13 @@ If an Android/Kotlin/Compose platform skill is installed in your environment —
 6. [Dependency injection](#dependency-injection-dagger--hilt)
 7. [Security](#security)
 8. [Performance & memory](#performance--memory)
-9. [Testing](#testing)
-10. [Kotlin quality](#kotlin-quality)
-11. [Navigation](#navigation)
-12. [Background work, permissions & notifications](#background-work-permissions--notifications)
-13. [Data persistence (Room & DataStore)](#data-persistence-room--datastore)
-14. [Resources & localisation](#resources--localisation)
-15. [Accessibility](#accessibility)
-16. [Dependency / build hygiene](#dependency--build-hygiene)
+9. [Kotlin quality](#kotlin-quality)
+10. [Navigation](#navigation)
+11. [Background work, permissions & notifications](#background-work-permissions--notifications)
+12. [Data persistence (Room & DataStore)](#data-persistence-room--datastore)
+13. [Resources & localisation](#resources--localisation)
+14. [Accessibility](#accessibility)
+15. [Dependency / build hygiene](#dependency--build-hygiene)
 
 ---
 
@@ -167,19 +166,6 @@ If the diff uses an API you don't recognize or you're unsure whether it's been d
 - **Baseline Profiles**: if this PR adds a new critical user journey (first launch, a hot navigation path) or a library that ships its own baseline profile rules, check whether `app/src/main/baseline-prof.txt` (or the `androidx.baselineprofile` Gradle plugin config) needs a corresponding update — a stale profile silently loses its speedup
 - **Fragment/View leaks**: `ViewBinding`/`FragmentBinding` reference nulled in `onDestroyView()` (not just `onDestroy()`) — a binding held past `onDestroyView()` leaks the whole view hierarchy
 - Listeners/observers registered on an app-lifetime singleton (analytics, a repository, an event bus) from a `Fragment`/`Activity`/`ViewModel` are unregistered on teardown — a singleton is exactly where one-way "forgot to unregister" leaks accumulate silently across process lifetime
-
-## Testing
-
-- New public/internal logic has corresponding unit tests
-- ViewModel tests use `StandardTestDispatcher` + `TestCoroutineScheduler` (or `UnconfinedTestDispatcher` for simple cases) — never `Dispatchers.Main` directly; use a `MainDispatcherRule`
-- Turbine (or `runTest { }`) for `Flow` emissions — no manual `take(1).toList()` patterns
-- MockK for mocking (Mockito acceptable if already in use)
-- Arrange / Act / Assert structure with clear separation
-- Edge cases covered: empty list, null input, network error, cancellation
-- No `Thread.sleep()` — `advanceTimeBy` / `runTest`
-- **Source set placement**: Paparazzi/screenshot/snapshot tests run on the JVM and must live in `src/test/`, not `src/androidTest/`. Check the path of every new test file.
-- **Project conventions**: before approving a new test file's structure, scan existing tests for shared base classes or naming patterns (e.g. `find . -name '*Test.kt' -path '*/test/*' | head -10`). Flag new tests that skip an established base class (e.g. `PaparazziSnapshotBaseTest`) or its helpers when the rest of the codebase uses them.
-- **Tests must exercise the code under test**: verify each test fires the event / calls the function it claims to test. A test that constructs state locally but never passes it to the ViewModel, or fires the wrong event, gives false confidence — flag it even if it passes.
 
 ## Kotlin quality
 
