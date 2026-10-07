@@ -1,18 +1,19 @@
 # review-mobile-pr (skill)
 
-Owns the PR-review orchestration logic, all 6 review-pass prompts, and the platform review knowledge bases (`references/*.md`) — all in one file, `SKILL.md`. There are no separate agent files: every dispatched pass is a fresh general-purpose agent built from a prompt block in `SKILL.md`'s own "Review passes" section, not a named, independently-installed subagent.
+Owns the PR-review orchestration logic (`SKILL.md`), the 6 review-pass prompts (`passes/*.md`), and the platform review knowledge bases (`references/*.md`). There are no separate agent files: every dispatched pass is a fresh general-purpose agent told to read its own `passes/<name>.md`, not a named, independently-installed subagent.
 
 ## Entry Points
 
-- `SKILL.md` - the orchestrator and every review pass's full prompt in one file: pre-flight, platform detection + external-skill resolution, pass dispatch, aggregation (with confidence-based filtering), cross-check against existing PR comments, opt-in safe-fix application, posting, summary
+- `SKILL.md` - the orchestrator: pre-flight, platform detection + external-skill resolution, pass dispatch, aggregation (with confidence-based filtering), cross-check against existing PR comments, opt-in safe-fix application, posting, summary
 - `scripts/prepare-diff.sh` - annotates the PR diff with per-line `R<n>`/`L<n>` numbers (and collapses lockfile/binary/snapshot noise); `check` mode validates comment anchors before step 8 posts
-- `references/android.md`, `references/ios.md`, `references/kmp.md`, `references/engineering-excellence.md` - read directly by dispatched passes via their `Read` tool, given as absolute paths the orchestrator resolves itself — never pasted inline as excerpts
+- `passes/*.md` - one prompt file per review pass (persona, checklist, severity tiers); the pass reads it itself, the orchestrator never loads or pastes it
+- `references/android.md`, `references/ios.md`, `references/kmp.md`, `references/engineering-excellence.md` (checklists) and `references/android-deprecations.md`, `references/ios-deprecations.md` (deprecation tables, Deprecation Scanner only) - read directly by dispatched passes via their `Read` tool, given as absolute paths the orchestrator resolves itself — never pasted inline as excerpts
 
 ## Contracts & Invariants
 
 - Every reference file is **literal review criteria an agent checks a diff against**, not documentation for leisurely reading. Terse checklist bullets only — no prose padding, no decorative headers. An agent cannot execute vague prose.
-- `android.md` and `ios.md` each have a "Table of contents" that must stay in sync with their actual H2 headers — adding or renaming an H2 section without updating the TOC is a bug. `kmp.md` and `engineering-excellence.md` deliberately have no TOC (short enough not to need one) — don't add one just for consistency.
-- The Deprecations tables in `android.md`/`ios.md` use an exact column format: `| Newly added usage of… | Status | Replacement / note | Severity |`. `mobile-pr-deprecation-scanner` (the agent) structurally depends on this shape — don't reflow it into prose.
+- `android.md` and `ios.md` each have a "Table of contents" that must stay in sync with their actual H2 headers — adding or renaming an H2 section without updating the TOC is a bug. `kmp.md`, `engineering-excellence.md` and the two `*-deprecations.md` files deliberately have no TOC (short enough not to need one) — don't add one just for consistency.
+- The tables in `android-deprecations.md`/`ios-deprecations.md` use an exact column format: `| Newly added usage of… | Status | Replacement / note | Severity |`. The Deprecation Scanner pass (`passes/deprecation-scanner.md`) structurally depends on this shape — don't reflow it into prose. Deprecation rows live only in those files, never back in the checklists: every other pass would pay to read them.
 - `engineering-excellence.md` "always applies, regardless of platform" — `SKILL.md` step 3 must always pass its path to the Code-Quality Reviewer pass, even on a PR that only touches one platform's files.
 - Version/date-specific facts in these files (Android API level, iOS/Xcode/Swift version, Compose Multiplatform version) are **verified-live facts, not evergreen prose** — when editing, confirm current values via WebSearch rather than assuming last year's numbers still hold. These files get stale on their own schedule, independent of the code they describe.
 - `SKILL.md`'s workflow steps are numbered 1–9 and cross-referenced by number from the Posting mode section, the Safety contract, the Fix mode section, the Review mode section, and several steps themselves. Renumbering requires a repo-wide grep-and-fix, not a local edit.
@@ -38,11 +39,11 @@ This is still where platform-API substance belongs, even though an external skil
 ## Anti-patterns
 
 - Don't duplicate a check that a specific review pass already owns into these reference files' checklist bullets — test *coverage*/*quality* belongs to the Test Analyzer pass's own prompt, error handling to the Bug Hunter's error-handling lens, comment accuracy to the Comment Analyzer's, type-design invariants to the Type-Design Analyzer's. These reference files are the shared platform-knowledge backstop (read by the Code-Quality Reviewer and Bug Hunter passes), not a place to re-litigate what a specialist pass already checks better.
-  - A real instance of this, not a hypothetical: `android.md`, `ios.md`, and `kmp.md` each carried their own dedicated `## Testing`/`## KMP testing` section that restated the Test Analyzer pass's own prompt block near-verbatim (removed 2026-09) — every dispatched pass paid to read it, and Code-Quality Reviewer's own prompt already explicitly excluded "non-testing sections" from its platform-checklist backstop, so nothing was actually backstopping through it. If a platform-specific test convention needs adding, put it in the Test Analyzer's prompt block in `SKILL.md`, not back into these files.
+  - A real instance of this, not a hypothetical: `android.md`, `ios.md`, and `kmp.md` each carried their own dedicated `## Testing`/`## KMP testing` section that restated the Test Analyzer pass's own prompt block near-verbatim (removed 2026-09) — every dispatched pass paid to read it, and Code-Quality Reviewer's own prompt already explicitly excluded "non-testing sections" from its platform-checklist backstop, so nothing was actually backstopping through it. If a platform-specific test convention needs adding, put it in `passes/test-analyzer.md`, not back into these files.
 - Don't invent a deprecation/version claim to fill out a table row — an unverified "fact" here produces a false positive on every PR that touches the flagged API.
 - Don't delete `references/{android,ios,kmp}.md` in favor of external skills again without re-reading this file's git history first — that exact change was made, then reverted the same week (2026-09) once it became clear an install-optional review tool can't have its baseline coverage depend on the reviewer's environment. External skills stay additive; see the invariant above.
 
 ## Related Context
 
 - Repo layout, posting-mode and fix-mode contracts: root `CLAUDE.md`
-- The review passes that consume these files are defined inline in this skill's own `SKILL.md`, under "Review passes" — there is no separate agent spec directory
+- The review passes that consume these files are prompt files in this skill's own `passes/` directory, listed in `SKILL.md`'s "Review passes" table — there is no separate agent spec directory

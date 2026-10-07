@@ -14,10 +14,6 @@ Apply to any file under `kmp/` or in multiplatform source sets. Rules are strict
 
 Apply the Android checklist (`android.md`) additionally to `androidMain`, and the iOS checklist (`ios.md`) additionally to `iosMain`/bindings where relevant.
 
-## External skills (extra depth)
-
-If a Kotlin/KMP platform skill is installed in your environment — `Kotlin/kotlin-agent-skills`, or any other Kotlin-tooling/KMP skill in your available-skills listing — consult it too for anything more specific or more current than this checklist covers. Treat it as **additive depth, never a replacement**: this file is always the floor. `androidMain`/`iosMain` actuals additionally get the same treatment from the Android/iOS files' own "External skills" notes above.
-
 ## Source set hygiene
 
 - No Android, JVM, or iOS platform imports in `commonMain` — `android.*`, `java.*`, `javax.*`, `platform.*`, `UIKit`, `Foundation` are all forbidden in common code

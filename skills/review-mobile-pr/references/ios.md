@@ -2,59 +2,26 @@
 
 Apply to Swift/SwiftUI/UIKit/Xcode files. Only review lines present in the diff (`+` lines). Never flag pre-existing code.
 
-## External skills (extra depth)
-
-If an iOS/Swift platform skill is installed in your environment — `AvdLee/SwiftUI-Agent-Skill`, or any other SwiftUI/UIKit/Swift skill in your available-skills listing — consult it too for anything more specific or more current than this checklist covers. Treat it as **additive depth, never a replacement**: this file is always the floor a review meets even with nothing installed; an installed skill only raises the ceiling. If the diff touches Firebase on iOS, also consult an installed `firebase/agent-skills`-family skill the same way.
+Deprecation tables live in `ios-deprecations.md` (read by the Deprecation Scanner pass).
 
 ## Table of contents
 
-1. [Deprecations & platform changes (2026)](#deprecations--platform-changes-2026)
-2. [Swift 6 concurrency](#swift-6-concurrency)
-3. [SwiftUI](#swiftui)
-4. [UIKit](#uikit)
-5. [Memory management](#memory-management)
-6. [Error handling & optionals](#error-handling--optionals)
-7. [Security & privacy](#security--privacy)
-8. [Performance](#performance)
-9. [SwiftData](#swiftdata)
-10. [WidgetKit, Live Activities & App Intents](#widgetkit-live-activities--app-intents)
-11. [StoreKit 2](#storekit-2)
-12. [Background tasks (BGTaskScheduler)](#background-tasks-bgtaskscheduler)
-13. [Push & local notifications](#push--local-notifications)
-14. [Swift macros](#swift-macros)
-15. [Swift quality](#swift-quality)
-16. [Localisation & accessibility](#localisation--accessibility)
-17. [Project / build hygiene](#project--build-hygiene)
-
----
-
-## Deprecations & platform changes (2026)
-
-Context: since **April 28, 2026**, every App Store upload must be built with the **iOS 26 SDK / Xcode 26** or later — no exceptions. Privacy Manifests (`PrivacyInfo.xcprivacy`) are mandatory, and "required reason" APIs need declared reasons. Swift 6 strict concurrency is the compiler default for new modules. iOS 26 unified Apple's OS versioning (iOS/iPadOS/macOS/watchOS/tvOS/visionOS all on the "26" cycle) — treat any codepath still branching on `#available` for the old numbering scheme (iOS 17/18) as still valid, but new `#available(iOS 26, *)` checks are the current baseline.
-
-| Newly added usage of… | Status | Replacement / note | Severity |
-|---|---|---|---|
-| `UIWebView` | Removed; apps rejected | `WKWebView` | 🔴 |
-| `ObservableObject` + `@Published` + `@StateObject`/`@ObservedObject`/`@EnvironmentObject` in **new** view models (iOS 17+ deployment target) | Superseded by the Observation framework | `@Observable` macro + `@State` (ownership) / plain property (passed) / `@Bindable` (two-way) / `@Environment` — gives property-level tracking and fewer re-renders. **Migration trap:** `@State` initializes its value on every view rebuild, unlike `@StateObject`'s lazy `@autoclosure` — flag expensive VM construction in the view initializer. | 🟡 |
-| `NavigationView` | Deprecated | `NavigationStack` / `NavigationSplitView` with typed `NavigationPath` | 🟡 |
-| `PreviewProvider` boilerplate in new previews | Superseded | `#Preview` macro | 🟢 |
-| Old alert/sheet APIs (`Alert(title:…)`, `.alert(isPresented:content:)` returning `Alert`) | Deprecated | `.alert(_:isPresented:actions:message:)` builder APIs | 🟢 |
-| `foregroundColor(_:)` | Deprecated | `foregroundStyle(_:)` | 🟢 |
-| `.animation(_:)` (no value) | Deprecated (ambient animation) | `.animation(_:value:)` or `withAnimation { }` | 🟡 |
-| `onChange(of:) { newValue in }` single-param | Deprecated iOS 17 | Two-parameter `onChange(of:) { old, new in }` or zero-param | 🟢 |
-| `DispatchQueue`/GCD in new async code paths | Superseded | Swift Concurrency: `Task`, `async/await`, actors, `AsyncSequence`; `@MainActor` instead of `DispatchQueue.main.async` for UI hops | 🟡 |
-| New Combine pipelines for one-shot async work | Not deprecated, but Apple investment is in Swift Concurrency | Prefer `async/await` / `AsyncSequence` for new code; Combine fine where the codebase is already Combine-based | 🟢 |
-| Completion-handler APIs where an async overload exists (`URLSession.dataTask` vs `data(for:)`) | Superseded | Async overloads | 🟡 |
-| Core Data for brand-new persistence in a greenfield module (iOS 17+) | Superseded for new work | SwiftData (`@Model`) — but do **not** flag additions to an existing Core Data stack | 🟢 |
-| `NSCoding`/`NSKeyedArchiver` without secure coding | Insecure/deprecated pattern | `Codable`, or `NSSecureCoding` with `requiresSecureCoding = true` | 🟠 |
-| XCTest for brand-new unit-test targets | Superseded for new pure-Swift tests | Swift Testing (`@Test`, `#expect`, `#require`) — don't flag additions to existing XCTest suites; UI tests remain XCTest | 🟢 |
-| Storyboard/XIB additions for new screens in a SwiftUI-first codebase | Legacy direction | SwiftUI (or the project's established UIKit pattern) | 🟢 |
-| Required-reason APIs (`UserDefaults`, file timestamps, disk space, boot time…) added without a `PrivacyInfo.xcprivacy` entry | Store rejection risk | Declare the reason in the privacy manifest | 🟠 |
-| `@preconcurrency import` added to silence warnings | Escape hatch | Acceptable at true legacy boundaries; flag when used to dodge fixing the module's own isolation | 🟡 |
-| New user-facing feature with a custom in-app UI screen and no `AppIntent` equivalent | Discovery gap, not a hard deprecation | Expose the action via `AppIntent` so it surfaces in Siri/Spotlight/Shortcuts/widgets — App Intents are the default discovery surface as of iOS 26 | 🟡 |
-| `NavigationLink(destination:isActive:)` / other Boolean-driven navigation in new code | Superseded | Value-driven `NavigationStack(path:)` / `NavigationLink(value:)` | 🟢 |
-
-If the diff uses an API you don't recognize or you're unsure whether it's been deprecated since this file was written, search the web before commenting.
+1. [Swift 6 concurrency](#swift-6-concurrency)
+2. [SwiftUI](#swiftui)
+3. [UIKit](#uikit)
+4. [Memory management](#memory-management)
+5. [Error handling & optionals](#error-handling--optionals)
+6. [Security & privacy](#security--privacy)
+7. [Performance](#performance)
+8. [SwiftData](#swiftdata)
+9. [WidgetKit, Live Activities & App Intents](#widgetkit-live-activities--app-intents)
+10. [StoreKit 2](#storekit-2)
+11. [Background tasks (BGTaskScheduler)](#background-tasks-bgtaskscheduler)
+12. [Push & local notifications](#push--local-notifications)
+13. [Swift macros](#swift-macros)
+14. [Swift quality](#swift-quality)
+15. [Localisation & accessibility](#localisation--accessibility)
+16. [Project / build hygiene](#project--build-hygiene)
 
 ---
 

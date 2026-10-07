@@ -7,7 +7,7 @@ Reviews Kotlin/Jetpack Compose/Gradle, Swift/SwiftUI/UIKit, and KMP code — inc
 ## What's inside
 
 - **1 skill** — `review-mobile-pr`, the orchestrator. Invoke it with a PR URL or number and it runs the whole review end to end.
-- **6 built-in review passes**, defined inline in the skill and dispatched in parallel, each a self-contained specialist:
+- **6 built-in review passes**, each a prompt file in the skill (`passes/*.md`), dispatched in parallel, each a self-contained specialist:
 
   | Pass | Focus |
   |---|---|
@@ -20,7 +20,7 @@ Reviews Kotlin/Jetpack Compose/Gradle, Swift/SwiftUI/UIKit, and KMP code — inc
 
 Every pass reads a platform reference checklist matching the diff — `android.md`, `ios.md`, or `kmp.md` — the last of which includes a dedicated **Compose Multiplatform** section (shared Composables, `expect`/`actual` UI, CMP resources, cross-platform navigation, iOS `ComposeUIViewController` embedding), plus one bundled, cross-cutting checklist (`engineering-excellence.md`) for code smells, dead code, SOLID, naming, PR hygiene, and docs.
 
-No separate agent files and no external dependency beyond the GitHub CLI (plus `bash`/`awk`, standard on macOS and Linux) — everything this skill needs, including every review pass's prompt and every platform reference file, ships inline in this one skill; a review is fully covered with nothing else installed. For a genuinely small, low-risk diff (a typo fix, a comment-only edit), it may review directly instead of dispatching all 6 passes — same findings, less overhead.
+No separate agent files and no external dependency beyond the GitHub CLI (plus `bash`/`awk`, standard on macOS and Linux) — everything this skill needs, including every review pass's prompt and every platform reference file, ships inside this one skill directory; a review is fully covered with nothing else installed. For a genuinely small, low-risk diff (a typo fix, a comment-only edit), it may review directly instead of dispatching all 6 passes — same findings, less overhead.
 
 Three cost tiers, from cheapest to most thorough: the tiny-diff shortcut above (zero dispatch, always wins when it applies), `--lite` (2 passes — Bug Hunter + Code-Quality Reviewer only, see below), and the full 6-pass dispatch (the default for anything that isn't tiny).
 
