@@ -18,7 +18,7 @@ This skill is fully self-contained — no separate agent files, no external depe
 | Comment Analyzer | Comment/doc accuracy, stranded artifacts from incomplete deletions | When the diff adds/modifies comments or doc comments — skipped under `--lite` |
 | Type-Design Analyzer | Type encapsulation and invariant expression | When the diff adds/reshapes a data class, sealed class/interface, enum, struct, or protocol — skipped under `--lite` |
 
-See step 3 for how each is dispatched, step 4 for the deprecation pass specifically, "Review mode" below for what `--lite` changes, and "Review passes" near the end of this file for each one's full prompt.
+See step 3 for how each is dispatched, step 4 for the deprecation pass specifically, "Review mode" below for what `--lite` changes, and "Review passes" near the end of this file for the `passes/*.md` file holding each one's full prompt.
 
 ## 📮 Posting mode
 
@@ -107,17 +107,17 @@ The reference files above are self-contained — a review is fully covered with 
 
 Resolve the posting mode from the invocation (see "Posting mode" above — no question). Also resolve review mode: full (default) unless `--lite` was passed.
 
+Create the run directory first — `mktemp -d` — and keep its literal absolute path (shell state doesn't persist between tool calls). Every file this review produces lives there.
+
+**Under `--local`, skip everything below up to "Annotate the diff" and use local git instead** (no `gh` calls, no auth check, no pending-review check): repo root = `git rev-parse --show-toplevel`; base = the argument, else `git symbolic-ref --short refs/remotes/origin/HEAD`, else `main`; `git diff <base>...HEAD > <run dir>/raw.diff`; PR intent from `git log <base>..HEAD --format='%s%n%b'` and the branch name. Then continue at "Annotate the diff" — the checkout bullets don't apply, since the repo root is already the head.
+
+Otherwise:
+
 ```bash
 gh auth status   # must succeed — stop if not authenticated
 ```
 
-Parse the PR URL/number to extract `owner`, `repo`, `pr_number`.
-
-Create the run directory first — `mktemp -d` — and keep its literal absolute path (shell state doesn't persist between tool calls). Every file this review produces lives there.
-
-**Under `--local`, replace the rest of pre-flight up to "Annotate the diff" with local git** (no `gh` calls, no auth check, no pending-review check): repo root = `git rev-parse --show-toplevel`; base = the argument, else `git symbolic-ref --short refs/remotes/origin/HEAD`, else `main`; `git diff <base>...HEAD > <run dir>/raw.diff`; PR intent from `git log <base>..HEAD --format='%s%n%b'` and the branch name. Then continue at "Annotate the diff" — the checkout bullets don't apply, since the repo root is already the head.
-
-Otherwise run these independent calls as separate tool calls in one batch:
+Parse the PR URL/number to extract `owner`, `repo`, `pr_number`, then run these independent calls as separate tool calls in one batch:
 
 ```bash
 gh pr view <number> --repo <owner>/<repo> \
@@ -142,7 +142,7 @@ Annotate the diff — this is what every pass reads, and what step 8 validates a
 <skill dir>/scripts/prepare-diff.sh annotate < <run dir>/raw.diff > <run dir>/pr.diff
 ```
 
-Each `+`/context line is prefixed `R<n>` (its new-file line, for `side: RIGHT`), each `-` line `L<n>` (its old-file line, for `side: LEFT`), so no one ever computes a line number from a hunk header. Lockfiles, binaries, snapshots and build output collapse to one `=== <path> (omitted: …)` line. The script prints `files=… added=… removed=…` — use that for size decisions instead of reading the diff yourself. If `gh pr diff` fails because the diff is too large, produce `raw.diff` with `git diff <base>...<headRefOid>` from the checkout below instead.
+Each `+`/context line is prefixed `R<n>` (its new-file line, for `side: RIGHT`), each `-` line `L<n>` (its old-file line, for `side: LEFT`), so no one ever computes a line number from a hunk header. Lockfiles, binaries, snapshots and build output collapse to one `=== <path> (omitted: …)` line. The script prints `files=… added=… removed=…` — use that for size decisions instead of reading the diff yourself. If `gh pr diff` fails because the diff is too large, do the checkout below first, then produce `raw.diff` with `git -C <repo root> diff <remote>/<baseRefName>...<headRefOid>` (fetch the base branch if needed) and annotate that. With no local clone, stop and tell the user the PR is too large to review without one.
 
 **Repo checkout at the PR head.** Passes grep call sites and read surrounding code, so they need the PR's code, not whatever branch is checked out:
 
@@ -152,7 +152,7 @@ Each `+`/context line is prefixed `R<n>` (its new-file line, for `side: RIGHT`),
 
 If `closingIssuesReferences` names linked issues, fetch the first two: `gh issue view <n> --repo <owner>/<repo> --json title,body --jq '.title + "\n" + (.body // "")[0:1500]'` — their acceptance criteria are the best statement of intent there is, and Bug Hunter checks the diff against it.
 
-**`--since-last`** (re-review): your most recent submitted review on this PR (state not `PENDING`, `user` = you) gives `<last>` = its `commit_id`. Once the checkout below exists, if `<last>` is an ancestor of `headRefOid` (`git -C <repo root> merge-base --is-ancestor <last> <headRefOid>`), keep the full annotated diff as `<run dir>/full.diff` and replace `pr.diff` with the annotated `git -C <repo root> diff <last> <headRefOid>` — passes then review only what changed since you last looked, while step 8 still validates anchors against `full.diff`. Fall back to a normal full review, and say why in the summary, when you have no earlier review, `<last>` equals `headRefOid`, `<last>` isn't an ancestor (force-push), or there's no local clone.
+**`--since-last`** (re-review): your most recent submitted review on this PR (state not `PENDING`, `user` = you) gives `<last>` = its `commit_id`. Once the checkout above exists, if `<last>` is an ancestor of `headRefOid` (`git -C <repo root> merge-base --is-ancestor <last> <headRefOid>`), keep the full annotated diff as `<run dir>/full.diff` and replace `pr.diff` with the annotated `git -C <repo root> diff <last> <headRefOid>` — passes then review only what changed since you last looked, while step 8 still validates anchors against `full.diff`. Fall back to a normal full review, and say why in the summary, when you have no earlier review, `<last>` equals `headRefOid`, `<last>` isn't an ancestor (force-push), or there's no local clone.
 
 Keep `headRefOid` (step 8 pins the review to it), the PR author's login (step 7) and the repo root. Keep the projected comments on hand — you'll cross-check your findings against them before posting (step 6).
 
@@ -185,7 +185,7 @@ Delegate the labor-intensive analysis to the review passes defined in "Review pa
 
 **Shared context goes in a file, never into the prompts.** A dispatched pass can't see your context, so anything you put in its prompt you must generate as output, once per pass — the diff alone, repeated across six prompts, would be the largest cost and the longest wait in the whole review. Instead, write `<run dir>/context.md` once with the `Write` tool, containing:
 
-- **PR intent** — one line stating what the change is supposed to do and its happy path, from the PR title/description, plus the linked issues' requirements (from pre-flight) as a short bullet list. You cannot judge "wrong" or "forgotten" without knowing "intended," and every pass needs this framing.
+- **PR intent** — one line stating what the change is supposed to do and its happy path, from the PR title/description, plus the PR description itself (first ~1,500 characters) and the linked issues' requirements (from pre-flight) as a short bullet list. You cannot judge "wrong" or "forgotten" without knowing "intended," and every pass needs this framing.
 - **The annotated diff's absolute path** (`<run dir>/pr.diff`) with one line on its format: `R<n>` = new-file line, `L<n>` = old-file line, copy them into findings verbatim. Plus the changed-files list.
 - **The repo root** from pre-flight (or "none — look files up with `gh api …/contents/<path>?ref=<headRefOid>`"). Grep and read there, never anywhere else.
 - **Absolute paths to the reference files for the platforms step 2 detected** — checklists (`android.md` / `ios.md` / `kmp.md`), deprecation tables (`android-deprecations.md` / `ios-deprecations.md`), and `engineering-excellence.md` always (it applies regardless of platform). Each pass file says which of these it reads, and reads them itself — paths, never pasted excerpts.
@@ -230,7 +230,7 @@ Skip this step entirely under `--lite` (see "Review mode" above). Otherwise, whe
 Parse every pass's JSON array into one pool (a pass that returned prose instead of JSON: extract its findings by hand rather than dropping them). Then, in order:
 
 1. **Drop LOW-confidence findings** outright, regardless of severity — a wrong finding costs the author's trust more than a missed one costs coverage.
-2. **Merge duplicates across passes.** Passes overlap by design (Bug Hunter and Code-Quality both see a forgotten `when` branch; Test Analyzer reports the same lines as an untested bug), so the same problem often arrives two to four times. Findings on the same `path` with overlapping lines (or naming the same out-of-diff location) and the same root cause are one finding: keep the highest severity, the clearest `title`/`body`, the best `fix` (a `suggestion` beats `code` beats `none`), and the union of `evidence`. Count merges for the summary. When unsure whether two findings share a root cause, merge only if one's fix would also resolve the other.
+2. **Merge duplicates across passes.** Passes overlap by design (Bug Hunter and Code-Quality both see a forgotten `when` branch; Test Analyzer reports the same lines as an untested bug), so the same problem often arrives two to four times. Findings on the same `path` with overlapping lines (or naming the same out-of-diff location) and the same root cause are one finding: keep the highest severity, the clearest `title`/`body`, the best `fix` (a `suggestion` beats `code` beats `none`), and the union of `evidence`; fold in a one-clause fact a merged finding adds that the kept one lacks ("no test covers this path"). Count merges for the summary. Separately, when distinct findings land on the same lines with fixes that overlap or conflict (a one-line `suggestion` plus a refactor of the same statement), make them consistent — one combined fix on the most severe, and a one-line pointer ("see the comment above for the fix") on the others. When unsure whether two findings share a root cause, merge only if one's fix would also resolve the other.
 3. **Re-verify** every CRITICAL/HIGH finding and every MEDIUM-confidence finding before trusting it. Use its `evidence` as the starting point and check it yourself with `grep`/`Read` in the repo root (a call site, a default value, what a function returns, what the repository documents). Drop a finding the code contradicts. Keep one you can't confirm or refute, but reword its `body` conditionally ("If `items` can be empty here, …") and cap it at MEDIUM. Count verified / softened / dropped for the summary.
 4. **Apply the comment budget.** Every CRITICAL/HIGH/MEDIUM finding is posted inline. Of the LOW findings (nits included), post at most 5 inline — the most valuable first; the rest go to the body's collapsed "More optional findings" list (step 8). QUESTION findings keep their own cap of 5 (see `passes/bug-hunter.md`).
 
@@ -251,7 +251,7 @@ When in doubt whether two comments describe the same root cause, treat them as m
 
 ### 7. Apply safe fixes (only with `--apply-safe-fixes`)
 
-Skip this step entirely, and go straight to step 8, unless `--apply-safe-fixes` was resolved in Usage. Also skip it — and say why in the summary — unless the repo root is the user's own checkout at `headRefOid` with a clean `git status --porcelain`: edits in step 1's temporary worktree would be thrown away, and edits on top of uncommitted work would tangle with it.
+Skip this step entirely, and go straight to step 8, unless `--apply-safe-fixes` was resolved in Usage. Skip it under `--dry-run` too (a dry run changes nothing). Under `--local`, `HEAD` stands in for `headRefOid` and the user is the author. Also skip it — and say why in the summary — unless the repo root is the user's own checkout at `headRefOid` with a clean `git status --porcelain`: edits in step 1's temporary worktree would be thrown away, and edits on top of uncommitted work would tangle with it.
 
 For each finding surviving step 6 whose `fix.kind` is `suggestion` and that meets the bar in step 8 ("Use `suggestion` when…" — a 1–3 line drop-in replacement, no surrounding context change, unambiguous correct code):
 
@@ -285,38 +285,37 @@ Top risk: <one line, `file` named — omit when nothing is must fix>
 </details>
 ```
 
-Write the payload to `<run dir>/review.json` with the `Write` tool (see the Safety contract — never a heredoc), then post it:
+Then, in this order:
 
-```json
-{
-  "commit_id": "<headRefOid from pre-flight>",
-  "body": "<summary body above>",
-  "comments": [
-    {
-      "path": "<relative file path>",
-      "line": <line number>,
-      "side": "RIGHT",
-      "body": "<comment body>"
-    }
-  ]
-}
-```
+1. **Validate every anchor.** Write `<run dir>/anchors.tsv` (one `path<TAB>RIGHT|LEFT<TAB>line` row per comment, plus one per `start_line`) with the `Write` tool, then run `<skill dir>/scripts/prepare-diff.sh check <run dir>/pr.diff < <run dir>/anchors.tsv`. It prints each anchor that isn't in the diff. Fix each one per the anchoring rules above (move it to a changed line in the same hunk, or to the body's list) — never post an unvalidated anchor, because one bad line makes GitHub reject the whole review. Under `--since-last`, first move every `LEFT` finding to the body's list (its `L<n>` counts lines in `<last>`, not in the base, so it can't be anchored), then check against `<run dir>/full.diff` — GitHub anchors to the whole PR diff.
+2. **Under `--local` or `--dry-run`, stop here — never POST.** Write `<run dir>/findings.md` with the `Write` tool — the body, then each comment as `### <path>:<line> (<side>)` followed by its body — print it in full, and go to step 9 (Summary).
+3. **Build the payload** in `<run dir>/review.json` with the `Write` tool (see the Safety contract — never a heredoc):
 
-```bash
-gh api repos/<owner>/<repo>/pulls/<number>/reviews --method POST --input <run dir>/review.json
-```
+   ```json
+   {
+     "commit_id": "<headRefOid from pre-flight>",
+     "body": "<summary body above>",
+     "comments": [
+       {
+         "path": "<relative file path>",
+         "line": <line number>,
+         "side": "RIGHT",
+         "body": "<comment body>"
+       }
+     ]
+   }
+   ```
 
-**Validate every anchor before posting.** Write `<run dir>/anchors.tsv` (one `path<TAB>RIGHT|LEFT<TAB>line` row per comment, plus one per `start_line`) with the `Write` tool, then run `<skill dir>/scripts/prepare-diff.sh check <run dir>/pr.diff < <run dir>/anchors.tsv` (under `--since-last`, check against `<run dir>/full.diff` instead — GitHub anchors to the whole PR diff, and a `LEFT` line from the incremental diff usually isn't in it). It prints each anchor that isn't in the diff. Fix each one per the anchoring rules above (move it to a changed line in the same hunk, or to the body's list) — never post an unvalidated anchor, because one bad line makes GitHub reject the whole review. If the POST still returns 422, the error names the offending comment: move it to the body's list and retry once.
+   `commit_id` pins every comment to the commit the passes actually reviewed — without it GitHub uses the latest commit, which may have been pushed mid-review. For a multi-line finding, add `"start_line": <first line>` and `"start_side"` (same side as `side`) alongside `line` (the last line of the range).
 
-**Under `--local` or `--dry-run`, stop here instead of POSTing** (validate anchors first — under `--local` that still catches bad line numbers): write `<run dir>/findings.md` with the `Write` tool — the body, then each comment as `### <path>:<line> (<side>)` followed by its body — and print it in full. Under `--local` there's no `commit_id` or payload file to build.
+   **Draft mode: no `event` field.** Omitting `event` is what tells the GitHub API to save the review as pending — invisible until manually submitted. Passing `"event": "PENDING"` returns a 422 error. **Live mode: add `"event": "COMMENT"`** to the top-level object — this posts the review, body and every inline comment, the moment the call succeeds. Never pass `APPROVE` or `REQUEST_CHANGES`; this skill reports findings, it doesn't gate the PR.
+4. **Post it:**
 
-`commit_id` pins every comment to the commit the passes actually reviewed — without it GitHub uses the latest commit, which may have been pushed mid-review.
+   ```bash
+   gh api repos/<owner>/<repo>/pulls/<number>/reviews --method POST --input <run dir>/review.json
+   ```
 
-**Draft mode: send the payload exactly as above, with no `event` field.** Omitting `event` is what tells the GitHub API to save the review as pending — invisible until manually submitted. Passing `"event": "PENDING"` returns a 422 error.
-
-**Live mode: add `"event": "COMMENT"` to the top-level object.** This posts the review — body and every inline comment — the moment the call succeeds. Never pass `APPROVE` or `REQUEST_CHANGES` here; this skill reports findings, it doesn't gate the PR.
-
-For a multi-line finding, add `"start_line": <first line>` and `"start_side"` (same side as `side`) alongside `line` (the last line of the range) — in either mode.
+   If it returns 422, the error names the offending comment: move it to the body's list, rewrite `review.json`, and retry once.
 
 ### Comment format
 
@@ -471,4 +470,4 @@ Each pass's full prompt is its own file in `<skill dir>/passes/`, read by the pa
 | Comment Analyzer | `passes/comment-analyzer.md` |
 | Type-Design Analyzer | `passes/type-design.md` |
 
-Each file holds only what's pass-specific — persona, checklist, severity-tier meanings. Everything shared (intent, diff, repo root, reference paths, output shape, the rules every pass follows) comes from `context.md`.
+Each file holds only what's pass-specific — persona, checklist, severity-tier meanings. The PR-specific inputs (intent, diff, repo root, reference paths) come from `context.md`; the rules, severity scale and output schema every pass follows come from `passes/shared.md`.

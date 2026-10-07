@@ -2,7 +2,7 @@
 
 Facts last updated: 2026-09-21. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
 
-Apply to Swift/SwiftUI/UIKit/Xcode files. Only review lines present in the diff (`+` lines). Never flag pre-existing code.
+Apply to Swift/SwiftUI/UIKit/Xcode files. Scope: lines the diff adds or removes, or a context line it left stale — never pre-existing code it didn't touch (see `passes/shared.md`).
 
 Deprecation tables live in `ios-deprecations.md` (read by the Deprecation Scanner pass).
 

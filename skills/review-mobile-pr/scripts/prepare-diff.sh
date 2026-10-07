@@ -6,10 +6,11 @@
 set -euo pipefail
 
 # Lockfiles, binaries, snapshots and build output: reviewed by stat line only.
-NOISE='(\.lock|Package\.resolved|\.(png|jpe?g|webp|gif|pdf|jar|aar|so|a|ttf|otf|mp4|zip|snap))$|(^|/)(build|__snapshots__)/'
+export NOISE='(\.lock|Package\.resolved|\.(png|jpe?g|webp|gif|pdf|jar|aar|so|a|ttf|otf|mp4|zip|snap))$|(^|/)(build|__snapshots__)/'
 
 annotate() {
-  awk -v noise="$NOISE" '
+  awk '
+    BEGIN { noise = ENVIRON["NOISE"] }  # -v would unescape the backslashes in the regex
     function flush() {
       if (path == "") return
       if (skip) printf "=== %s (omitted: +%d/-%d lines, lockfile/binary/snapshot)\n", path, fa, fr
@@ -40,15 +41,15 @@ annotate() {
 }
 
 check() {
-  awk -F'\t' '
+  awk '
     FNR == NR {
       if (/^=== /) { path = substr($0, 5); sub(/ \(omitted: .*$/, "", path); next }
       if (/^[RL][0-9]+ /) { side = (substr($0, 1, 1) == "R") ? "RIGHT" : "LEFT"; ok[path "\t" side "\t" substr($1, 2) + 0] = 1 }
       next
     }
-    !(($1 "\t" $2 "\t" $3) in ok) { print "invalid anchor: " $0; bad = 1 }
+    { split($0, a, "\t"); if (!((a[1] "\t" a[2] "\t" a[3]) in ok)) { print "invalid anchor: " $0; bad = 1 } }
     END { exit bad }
-  ' FS=' ' "$1" FS='\t' -
+  ' "$1" -
 }
 
 slice() {

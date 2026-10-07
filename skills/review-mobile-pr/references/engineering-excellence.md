@@ -1,6 +1,6 @@
 # Engineering excellence & code smells
 
-Applies to **every PR**, regardless of platform. Two parts: the code-smell scan (fast, mechanical) and the excellence standards (judgment-based). Only flag `+` lines.
+Applies to **every PR**, regardless of platform. Two parts: the code-smell scan (fast, mechanical) and the excellence standards (judgment-based). Scope: lines the diff adds or removes, or a context line it left stale — never pre-existing code it didn't touch (see `passes/shared.md`).
 
 ---
 
