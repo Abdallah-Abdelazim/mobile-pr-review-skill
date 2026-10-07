@@ -288,6 +288,14 @@ Severity scale:
 
 Prefix the title with **Nit:** (e.g. `🟢 Nit: Stranded comment left behind by the X removal`) when a finding is real but optional polish — a stale comment, a one-line leftover, something the author can take or leave without it blocking the PR. This is distinct from a plain 🟢 LOW finding that's still worth doing (e.g. a genuine unused import): Nit signals "skip this if you want," LOW signals "should probably fix."
 
+**QUESTION findings** (severity `QUESTION` from Bug Hunter) are not defects — they flag an asymmetry with related logic that is probably fine but easy to misread, and ask the author to confirm or document the intent. Use this shape instead of the one above — no severity, no Issue/Why/Fix sections, no suggestion block:
+
+````
+**❓ Question: <the intent being confirmed, phrased as a question>**
+
+<2–3 sentences: what the diff does, the sibling it differs from (named by file/symbol), and how a later reader could misread the difference.>
+````
+
 Tone: findings, not verdicts. State the problem and its consequence; don't lecture. When something is a judgment call, say so ("Consider…" / "If X is intentional, ignore this"). Never pad the review with manufactured or speculative nitpicks to look thorough — a review with three real findings beats one with twenty trivia. A concrete, verifiable small catch (labeled Nit) is not padding and stays welcome.
 
 ### 9. Summary
@@ -304,6 +312,7 @@ Findings:
   🟠 High:     <n>
   🟡 Medium:   <n>
   🟢 Low:      <n>
+  ❓ Questions: <n>
 
 By category:
   🐛 Bugs/correctness:      <n>
@@ -372,6 +381,7 @@ Read the reference file(s) you're given — they contain the platform's architec
 - **Non-exhaustive branching** — a new `when`/`switch` that silently falls through; an `else`/`default` that will swallow a future variant; a missing branch for a state that already exists.
 - **Silent behavior change (regression)** — does the hunk change behavior for an input the PR never mentions? Watch for reordered operations, a moved/added early `return`/`guard` that skips later side effects, a changed default, or a now-swallowed exception.
 - **Contract / data-flow mismatch** — does the value passed match what the callee expects (units, nullability/optionality, ID vs object, format, mutability)? Is a returned error/`Result` actually checked, or dropped?
+- **Asymmetry with related logic** — the change behaves differently from a sibling it would naturally be compared to, and nothing in the diff explains why: a new field/param wired through the domain model but left out of a neighbouring mapper/DTO/serializer/analytics path; one of several parallel state machines, screens, platforms (Android vs iOS) or flows handling a case the others don't (or vice versa); a rule/default/validation applied in one place but not its twin. Nothing here is *wrong* as far as you can tell — the risk is that a later reader will misread the asymmetry as a bug (and "fix" it) or as a pattern to copy. Emit it as `QUESTION`, not a defect, and only if it clears the bar in this pass's severity scale; otherwise stay silent. If it plainly breaks a flow, it's a forgotten call site above.
 - **State & resource lifecycle** — acquired but not released (stream, cursor, listener, observer, subscription, scope, `Task`); subscribed but never cancelled; shared mutable state written from more than one place; a retain cycle from a strong `self` capture.
 - **Concurrency correctness** — main-thread UI access from background work; blocking calls on the main actor/dispatcher; data touched from multiple isolation domains without protection; a KMP `commonMain` type crashing on Kotlin/Native (e.g. `synchronized {}`, `ThreadLocal`).
 
@@ -385,7 +395,7 @@ Read the reference file(s) you're given — they contain the platform's architec
 
 **Step 5 — Verify before you assert.** When a finding depends on something outside the diff (the old signature, a default value, another call site, what a function returns), look it up with `Grep`/`Read` before writing the comment. A wrong guess wastes the author's time; the lookup is cheaper than a wrong finding.
 
-**Severity scale** — comment only when you find a concrete problem on a `+` line (or a `-`-adjacent line stranded by this diff): CRITICAL = crash, data loss/corruption, security exploit, a guaranteed regression on a money/auth/PII path, a silent failure, or a broad catch hiding unrelated errors. HIGH = a forgotten call site or contract mismatch that breaks a real user flow, an unhandled error path on a high-blast-radius hunk, a concurrency bug (data race, main-thread violation), an unjustified fallback, or a swallowed `CancellationException`/`Task` cancellation. MEDIUM = a wrong-logic or non-exhaustive-branching bug confined to a low-blast-radius path, a resource leak with no immediate user-visible effect, missing context in an otherwise-present log, or a catch that could be narrower. LOW = a correctness nit that's real but cosmetic-adjacent (e.g. a redundant condition that happens to be harmless).
+**Severity scale** — comment only when you find a concrete problem on a `+` line (or a `-`-adjacent line stranded by this diff): CRITICAL = crash, data loss/corruption, security exploit, a guaranteed regression on a money/auth/PII path, a silent failure, or a broad catch hiding unrelated errors. HIGH = a forgotten call site or contract mismatch that breaks a real user flow, an unhandled error path on a high-blast-radius hunk, a concurrency bug (data race, main-thread violation), an unjustified fallback, or a swallowed `CancellationException`/`Task` cancellation. MEDIUM = a wrong-logic or non-exhaustive-branching bug confined to a low-blast-radius path, a resource leak with no immediate user-visible effect, missing context in an otherwise-present log, or a catch that could be narrower. LOW = a correctness nit that's real but cosmetic-adjacent (e.g. a redundant condition that happens to be harmless). QUESTION = an asymmetry with related app logic (see the asymmetry bullet) that is not wrong but that a reader could plausibly misanalyze or misunderstand — **important cases only**: it touches what crosses a boundary (network/booking payloads, persistence, analytics, a public API/serialized contract), a money/auth/PII path, or behavior users or other teams will rely on, so a wrong guess either way has real cost. Requires concrete evidence: name the sibling that behaves differently (via `Grep`/`Read`), not a hunch. **Never post:** trivial or cosmetic differences, internal-only details, pure confirmation ("is this intended?" with no identified asymmetry or misreading risk), or speculative "did you consider…" musings. Cap at 5 per review — if more qualify, keep the highest-blast-radius ones and drop the rest; when in doubt, say nothing.
 
 ### Code-Quality Reviewer
 

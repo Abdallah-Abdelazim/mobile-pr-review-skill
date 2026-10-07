@@ -21,6 +21,8 @@ Owns the PR-review orchestration logic, all 6 review-pass prompts, and the platf
 - **External platform skills are strictly additive, never a substitute** — see `SKILL.md`'s "External platform skills" section. A pass always gets its `references/{android,ios,kmp}.md` path regardless of whether a matching skill was also resolved for that platform in step 2; the skill's name, when present, is extra context appended alongside, not a replacement for the `Read` call. Reversing this (skip the reference file because a skill covers that platform) breaks the floor/ceiling guarantee this design promises.
 - **The "no skill installed for <platform>" hint is aggregated and singular.** Step 2 records misses on a running list as it resolves each platform; step 9 is the *only* place that list gets printed, combined into one line. No pass, and no earlier step, prints its own version of this hint — that was tried and reverted (2026-09) specifically because scattered hints buried the same install suggestion 2-6 times across one review's output.
 
+- **`QUESTION` is a Bug Hunter-only output, not a severity tier.** It posts as a short `**❓ Question: …**` prose comment (step 8's "QUESTION findings" block) with no severity/Issue/Why/Fix, and gets its own line in step 9's summary. It's deliberately scarce — important cases only (boundary/money/auth/PII or behavior others rely on), max 5 per review, never trivial or pure-confirmation (defined in Bug Hunter's severity scale); don't loosen that, a review full of questions is noise. Other passes don't emit it; it still goes through step 5's LOW-confidence drop and step 6's duplicate check like any finding.
+
 ## Patterns
 
 Adding coverage for a new platform API/feature:
