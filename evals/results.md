@@ -15,3 +15,7 @@ Recall = must-find found / total. FP = false positives. Sev = must-finds at or a
 | 2026-10-08 | 574226b | android-login-tests | 2/2 | 2/2 | 2/2 | 0 | 1 | 4 / 6 | 5 | 219,781 (3 passes) | 6 raw → 4. Deprecation Scanner gated off (no symbols). |
 | 2026-10-08 | 574226b | android-comments-types | 3/3 | 3/3 | 1/1 | 1 † | 1 | 6 / 6 | 4 | 361,787 (5 passes) | 10 raw → 6. †Borderline: "`User.title` no longer read" is true dead code left by the diff, but expected.md's must-not-flag lists `data class User`. |
 | 2026-10-08 | 574226b | tiny-typo | – | – | – | 0 | 0 | 0 / 0 | – | 0 (tiny-diff path) | Reviewed directly, zero passes. Scored by hand. |
+
+**Fixture changes (7804bdb, after the 2026-10-08 runs above):**
+- `ios-profile/expected.md`: off-main-publish now also accepts line 9 (the class declaration, where the `@MainActor` fix goes). Under it, the 2026-10-08 ios-profile run scores 3/3.
+- `android-comments-types/expected.md`: "must not flag `data class User`" narrowed to flagging `User` as a defect in itself; a note that the diff left `User.title` unused is valid. Under it, that run has 0 false positives.

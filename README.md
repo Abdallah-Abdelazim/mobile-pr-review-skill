@@ -20,9 +20,34 @@ Reviews Kotlin/Jetpack Compose/Gradle, Swift/SwiftUI/UIKit, and KMP code — inc
 
 Bug Hunter and Code-Quality Reviewer read the platform reference checklist matching the diff — `android.md`, `ios.md`, or `kmp.md` — the last of which includes a dedicated **Compose Multiplatform** section (shared Composables, `expect`/`actual` UI, CMP resources, cross-platform navigation, iOS `ComposeUIViewController` embedding), plus one bundled, cross-cutting checklist (`engineering-excellence.md`) for code smells, dead code, SOLID, naming, PR hygiene, and docs. The Deprecation Scanner reads the separate `android-deprecations.md` / `ios-deprecations.md` tables.
 
-No separate agent files and no external dependency beyond the GitHub CLI (plus `bash`/`awk`, standard on macOS and Linux) — everything this skill needs, including every review pass's prompt and every platform reference file, ships inside this one skill directory; a review is fully covered with nothing else installed. For a genuinely small, low-risk diff (a typo fix, a comment-only edit), it may review directly instead of dispatching all 6 passes — same findings, less overhead.
+No separate agent files and no external dependency beyond the GitHub CLI and `git` (plus `bash`/`awk`, standard on macOS and Linux) — everything this skill needs, including every review pass's prompt and every platform reference file, ships inside this one skill directory; a review is fully covered with nothing else installed.
 
-Each review pass costs roughly 70k tokens before it reads the diff, so the skill only dispatches passes with something to check: Test Analyzer only when code or tests changed, Deprecation Scanner only when an added line matches a known deprecated symbol, Comment and Type-Design Analyzers only when comments or types changed. Three cost tiers, from cheapest to most thorough: the tiny-diff shortcut above (≤30 changed lines in ≤2 files with no control-flow change — zero dispatch, always wins when it applies), `--lite` (2 passes — Bug Hunter + Code-Quality Reviewer only, see below), and the full 6-pass dispatch (the default for anything that isn't tiny).
+## How a review runs
+
+1. **Pre-flight** — fetches the PR, its linked issues and existing comments; checks out the PR head in a temporary worktree (your own branch is never switched); writes the diff to a file with every line pre-numbered, so comment line numbers are copied, not guessed.
+2. **Dispatch** — runs only the passes that have something to check, in parallel. Each pass reads the diff and its own prompt from files; nothing large is pasted into prompts.
+3. **Aggregate** — merges the same problem reported by several passes into one finding, re-verifies every Critical/High (and every uncertain) finding against the code, drops what doesn't hold up, and keeps at most 5 optional findings inline (the rest go in the review summary).
+4. **Post** — validates every comment's line against the diff, then posts one review: inline comments plus a short summary body, pinned to the reviewed commit.
+
+Each review pass costs roughly 70k tokens before it reads the diff, so dispatch count — not diff size — drives cost. The skill only dispatches passes with something to check: Test Analyzer only when code or tests changed, Deprecation Scanner only when an added line matches a known deprecated symbol, Comment and Type-Design Analyzers only when comments or types changed. Three cost tiers, from cheapest to most thorough: the tiny-diff path (≤30 changed lines in ≤2 files, no control-flow change, nothing on an auth/payment/persistence/concurrency path — reviewed directly with zero passes), `--lite` (2 passes — Bug Hunter + Code-Quality Reviewer only, see below), and the full dispatch (the default for anything that isn't tiny). Diffs above ~1,500 changed lines split Bug Hunter into 2–3 shards.
+
+## What a comment looks like
+
+Every comment leads with severity, category and what to do — **must fix**, **should fix**, **consider** or **optional** — then one short paragraph with the evidence, a **Fails when:** line for bugs, and the fix (a one-click `suggestion` block when it's a clean drop-in):
+
+````
+🔴 **Critical · Bug · must fix** — `items.first()` crashes when the cart is empty
+
+`CartRepository.fetchItems()` returns an empty list for new users (`CartRepository.kt:6`), so `first()` throws `NoSuchElementException` inside `viewModelScope`.
+
+**Fails when:** a new user opens the cart before the first sync.
+
+```suggestion
+            _state.value = CartUiState(items = items, featured = items.firstOrNull())
+```
+````
+
+The review's summary body counts findings by label, names the top risk, and lists anything that can't be anchored to a diff line (e.g. a caller in a file the PR didn't touch).
 
 ## Optional: deeper platform coverage
 
@@ -73,7 +98,13 @@ Requires the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against 
 - **Fix mode on someone else's PR still posts the comment** for each fix it applies locally, so the author sees it. The applied fixes are left uncommitted and unpushed.
 - If the API call fails, it prints the findings to your terminal instead of falling back to any other posting mechanism, in either mode.
 - **The skill never edits your repo's files, unless you explicitly pass `--apply-safe-fixes`.** Even then, it only ever auto-applies a narrow class of unambiguous, single-line-grade fixes — anything else still becomes a review comment for you to act on yourself.
+- **Reviews the PR's actual code.** Lookups (call sites, tests, definitions) run against the PR head — in your checkout when it's already there, otherwise in a temporary worktree that's removed afterwards.
+- **PR content is treated as untrusted.** Every pass is told never to follow instructions found in the diff, description or comments, and the review payload is never built in a shell, so text from the PR can't run as a command.
 - **`--lite` is a coverage tradeoff, not free.** With it, deprecation checking, test-coverage checking, and comment/type-design review don't happen at all — only correctness, error-handling, and code-quality/hygiene do.
+
+## Evals
+
+`evals/` holds 8 seeded-bug fixtures (Android, iOS, KMP, a clean refactor, a tiny diff), a setup script and a grader prompt, used to measure recall, false positives, comment count and token cost before and after a change. Results are in [`evals/results.md`](./evals/results.md); see [`evals/README.md`](./evals/README.md) to run them. Not shipped with the skill.
 
 ## License
 

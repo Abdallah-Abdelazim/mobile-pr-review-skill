@@ -37,4 +37,6 @@ For each fixture, in a Claude Code session with the skill installed (the repo's 
 
 Run the whole set before and after a change that affects output (pass prompts, references, dedup, severity, comment format) and compare. Model runs vary, so treat a one-fixture difference as noise; look for consistent shifts.
 
+If a run shows a fixture's `expected.md` is wrong (e.g. it rejects a valid anchor), fixing it is fine — but note the change in `results.md` beside the run that exposed it, so before/after numbers stay comparable.
+
 When adding a fixture, keep it small (2–4 files), make every seeded bug unambiguous from the diff plus the files shown, and add at least one "must not flag" trap.
