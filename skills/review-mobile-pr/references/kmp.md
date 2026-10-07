@@ -81,7 +81,7 @@ Applies to shared Composables in `commonMain` that render on both Android and iO
 ## iOS / Swift interop (engine-ios-bindings and iosMain)
 
 - Public Kotlin declarations for Swift consumption annotated with `@ObjCName("SwiftFriendlyName")` where the default name would be awkward in Swift
-- Kotlin exceptions crossing the Swift boundary are caught and converted to result types, or declared with `@Throws(...)` — uncaught Kotlin exceptions terminate the iOS app
+- Kotlin exceptions crossing the Swift boundary are caught and converted to result types, or declared with `@Throws(...)` — uncaught Kotlin exceptions terminate the iOS app. `IOException` isn't in Kotlin's common stdlib: in `commonMain`, `@Throws` must name a common type such as `kotlinx.io.IOException` (kotlinx-io-core) or the one the project's networking layer already uses — never `java.io.IOException`
 - `Flow` not directly exposed to Swift — wrapped via SKIE, KMP-NativeCoroutines, or a `CFlow`/callback helper
 - `suspend` functions exposed to Swift use SKIE/KMP-NativeCoroutines or a callback wrapper — raw `suspend` is not ergonomically callable from Swift
 - No Kotlin `object` singletons holding mutable state shared across threads without concurrency protection

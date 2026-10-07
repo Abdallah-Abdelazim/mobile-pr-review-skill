@@ -1,7 +1,7 @@
 # Expected — ios-profile
 
 ## Must find
-- id: off-main-publish | file: App/Profile/ProfileViewModel.swift | line: ~21-22 | min severity: HIGH | `ProfileViewModel` isn't `@MainActor`, so the nonisolated `async load()` mutates `@Published profile` (and calls `onLoaded`) off the main actor — UI state updated from a background thread / data race.
+- id: off-main-publish | file: App/Profile/ProfileViewModel.swift | line: ~21-22, or 9 (the class declaration, where the `@MainActor` fix goes) | min severity: HIGH | `ProfileViewModel` isn't `@MainActor`, so the nonisolated `async load()` mutates `@Published profile` (and calls `onLoaded`) off the main actor — UI state updated from a background thread / data race.
 - id: swallowed-errors | file: App/Profile/ProfileViewModel.swift | line: ~20-21 | min severity: MEDIUM | `try?` on both the network call and the decode silently drops failures; the view shows "Loading…" forever with no error state.
 - id: uncancelled-task | file: App/Profile/ProfileView.swift | line: ~13 | min severity: MEDIUM | `Task {}` in `onAppear` is never cancelled and re-fires on every appear; use `.task { }`.
 
