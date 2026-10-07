@@ -265,8 +265,8 @@ After applying fixes, best-effort validate the touched files: look for a discove
 **Body** — short, plain, written last:
 
 ```
-🔴 <n> · 🟠 <n> · 🟡 <n> · 🟢 <n> · ❓ <n>
-Top risk: <one line, `file` named — omit when there are no 🔴/🟠 findings>
+**<n> must fix · <n> should fix · <n> optional · <n> questions**   ← omit zero parts; optional = consider + optional
+Top risk: <one line, `file` named — omit when nothing is must fix>
 
 **Not tied to a diff line:**          ← omit section when empty
 - <title> — <one sentence>
@@ -312,26 +312,50 @@ For a multi-line finding, add `"start_line": <first line>` and `"start_side"` (s
 
 ### Comment format
 
-Build each inline comment from the finding's fields: `title` is the short title, `body` the Issue, `failure_scenario` (when set) the Why it matters, and `fix` the Fix — a `suggestion` block for `kind: suggestion`, a language block for `code`, and no Fix section for `none`. Each inline comment body should follow:
+Build every inline comment from the finding's fields: a header that says how serious it is, what kind of problem it is and what the author should do; one short paragraph; then the fix. Length scales with severity — a nit is a header and a suggestion, nothing more.
+
+| Severity | Label |
+|---|---|
+| 🔴 CRITICAL | must fix |
+| 🟠 HIGH | must fix |
+| 🟡 MEDIUM | should fix |
+| 🟢 LOW | consider |
+| 🟢 LOW with `nit: true` | optional |
 
 ````
-<emoji> <SEVERITY>: <Short Title>
+<emoji> **<Severity> · <Category> · <label>** — <title>
 
-**Issue**: <what is wrong and why — platform-specific where relevant>
+<body>
 
-**Why it matters**: <crash, leak, recomposition storm, data race, silent data loss, store rejection, maintenance cost, etc.>
+**Fails when:** <failure_scenario>                 ← only when set
 
-**Fix**:
-```kotlin or ```swift
-<corrected code>
+```suggestion
+<fix.code>
+```                                                   ← kind: suggestion; a ```kotlin / ```swift block for kind: code; nothing for kind: none
+
+Ref: <doc URL>                                        ← only when `evidence` holds an official doc URL
+````
+
+`<Category>` is the `category` field in words: Bug, Error handling, Deprecation, Code quality, Tests, Comments, Type design. For a LOW finding whose `title` already says everything, drop the `body` paragraph. A finding step 5 softened keeps its conditional wording ("If `items` can be empty here, …"). A "Related existing comment" note from step 6 goes last.
+
+Example:
+
+````
+🔴 **Critical · Bug · must fix** — `items.first()` crashes when the cart is empty
+
+`CartRepository.fetchItems()` returns an empty list for new users (`CartRepository.kt:6`), so `first()` throws `NoSuchElementException` inside `viewModelScope`.
+
+**Fails when:** a new user opens the cart before the first sync.
+
+```suggestion
+            _state.value = CartUiState(items = items, featured = items.firstOrNull())
 ```
 ````
 
-**When the fix is a direct, single-line replacement** (missing default value, wrong import, unused line, trivial rename), use a GitHub suggestion block instead of a language code block. This lets the author apply the fix with one click:
-
 ````
+🟢 **Low · Code quality · optional** — Unused import `kotlinx.coroutines.delay`
+
 ```suggestion
-    subtitle: String? = null,
 ```
 ````
 
@@ -345,11 +369,7 @@ Use a language block (not suggestion) when:
 - A design decision or explanation is more valuable than the exact code
 - The replacement requires context the author must supply
 
-Severity comes from the passes, on the one scale defined in `passes/shared.md`: 🔴 CRITICAL, 🟠 HIGH, 🟡 MEDIUM, 🟢 LOW.
-
-Prefix the title with **Nit:** (e.g. `🟢 Nit: Stranded comment left behind by the X removal`) when the finding has `nit: true` — real but optional polish — a stale comment, a one-line leftover, something the author can take or leave without it blocking the PR. This is distinct from a plain 🟢 LOW finding that's still worth doing (e.g. a genuine unused import): Nit signals "skip this if you want," LOW signals "should probably fix."
-
-**QUESTION findings** (severity `QUESTION` from Bug Hunter) are not defects — they flag an asymmetry with related logic that is probably fine but easy to misread, and ask the author to confirm or document the intent. Use this shape instead of the one above — no severity, no Issue/Why/Fix sections, no suggestion block:
+**QUESTION findings** (severity `QUESTION` from Bug Hunter) are not defects — they flag an asymmetry with related logic that is probably fine but easy to misread, and ask the author to confirm or document the intent. Use this shape instead of the one above — no severity, no label, no fix:
 
 ````
 **❓ Question: <the intent being confirmed, phrased as a question>**
@@ -357,7 +377,7 @@ Prefix the title with **Nit:** (e.g. `🟢 Nit: Stranded comment left behind by 
 <2–3 sentences: what the diff does, the sibling it differs from (named by file/symbol), and how a later reader could misread the difference.>
 ````
 
-Tone: findings, not verdicts. State the problem and its consequence; don't lecture. When something is a judgment call, say so ("Consider…" / "If X is intentional, ignore this"). Never pad the review with manufactured or speculative nitpicks to look thorough — a review with three real findings beats one with twenty trivia. A concrete, verifiable small catch (labeled Nit) is not padding and stays welcome.
+Tone: findings, not verdicts. State the problem and its consequence; don't lecture. When something is a judgment call, say so ("Consider…" / "If X is intentional, ignore this"). Never pad the review with manufactured or speculative nitpicks to look thorough — a review with three real findings beats one with twenty trivia. A concrete, verifiable small catch (labeled optional) is not padding and stays welcome.
 
 ### 9. Summary
 
@@ -367,6 +387,13 @@ After posting, print (heading depends on the resolved posting mode; append ` · 
 ✅ Draft review saved (NOT submitted)          [Draft mode]
 ✅ Review posted — visible on the PR now       [Live mode]
    (append " · lite" to either line above when --lite was active)
+
+Posted (one line per inline comment, most severe first):
+  🔴 must fix    <file>:<line>   <title>
+  🟡 should fix  <file>:<line>   <title>
+  …
+Not tied to a diff line: <title>, <title>      [omit when none]
+Applied directly: <file>:<line> <title>, …    [fix mode only]
 
 Findings:
   🔴 Critical: <n>
