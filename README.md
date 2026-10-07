@@ -1,6 +1,6 @@
 # mobile-pr-review
 
-An [agent skill](https://github.com/vercel-labs/skills) for expert Android, iOS & Kotlin Multiplatform (KMP) pull request review. By default it saves every finding as a **PENDING (draft) GitHub review** — invisible until you manually submit it — but you can ask it to post live instead, either up front or when it asks you.
+An [agent skill](https://github.com/vercel-labs/skills) for expert Android, iOS & Kotlin Multiplatform (KMP) pull request review. By default it saves every finding as a **PENDING (draft) GitHub review** — invisible until you manually submit it — pass `--live` (or ask for it) to post immediately instead. It never stops to ask.
 
 Reviews Kotlin/Jetpack Compose/Gradle, Swift/SwiftUI/UIKit, and KMP code — including shared **Compose Multiplatform** UI — against up-to-date (2026) platform deprecations, Swift 6 / Compose best practices, code smells, and software-engineering excellence standards.
 
@@ -51,9 +51,9 @@ This drops the skill into `.claude/skills/review-mobile-pr/` in the current proj
 
 ```
 /review-mobile-pr https://github.com/<org>/<repo>/pull/<number>
-/review-mobile-pr <number>                     # when already inside the repo; asks Draft-or-Live before posting
-/review-mobile-pr <number> --live              # skip the question — post live immediately
-/review-mobile-pr <number> --draft             # skip the question — save as a pending review (the default anyway)
+/review-mobile-pr <number>                     # when already inside the repo; saves a pending (draft) review
+/review-mobile-pr <number> --live              # post live immediately instead
+/review-mobile-pr <number> --draft             # explicit draft (the default anyway)
 /review-mobile-pr <number> --lite              # cheaper — only Bug Hunter + Code-Quality Reviewer, skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes  # also apply narrow, safe fixes directly instead of just commenting on them
 ```
@@ -63,9 +63,11 @@ Requires the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against 
 
 ## Safety contract
 
-- **Draft by default.** Unless you explicitly asked for Live — via `--live` or by answering the prompt — every comment is saved as part of a **pending** GitHub review, visible only to you until you open the PR and submit it yourself.
+- **Draft by default.** Unless you explicitly asked for Live (`--live`, or saying so in your request), every comment is saved as part of a **pending** GitHub review, visible only to you until you open the PR and submit it yourself.
 - **Live posts everything at once**, the moment the review finishes — still just comments, never an approval or a change request; this skill reports findings, it doesn't gate the PR.
-- The skill never uses `gh pr review --comment`, `gh pr comment`, or any GitHub write API call that bypasses the single review it builds.
+- The skill never uses `gh pr review --comment`, `gh pr comment`, or any GitHub write API call that bypasses the single review it builds. That review carries a short summary body (finding counts, top risk, findings not tied to a diff line) written after all findings are final, pinned to the exact commit that was reviewed.
+- If you already have a pending review on the PR, the skill stops before reviewing (GitHub allows one per user) and asks you to submit or delete it first. With zero findings, nothing is posted.
+- **Fix mode on someone else's PR still posts the comment** for each fix it applies locally, so the author sees it. The applied fixes are left uncommitted and unpushed.
 - If the API call fails, it prints the findings to your terminal instead of falling back to any other posting mechanism, in either mode.
 - **The skill never edits your repo's files, unless you explicitly pass `--apply-safe-fixes`.** Even then, it only ever auto-applies a narrow class of unambiguous, single-line-grade fixes — anything else still becomes a review comment for you to act on yourself.
 - **`--lite` is a coverage tradeoff, not free.** With it, deprecation checking, test-coverage checking, and comment/type-design review don't happen at all — only correctness, error-handling, and code-quality/hygiene do.

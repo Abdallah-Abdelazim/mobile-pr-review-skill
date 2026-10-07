@@ -1,6 +1,6 @@
 ---
 name: review-mobile-pr
-description: Expert Android & iOS PR review. Defaults to saving findings as a PENDING (draft) GitHub review — invisible until manually submitted — but will post them live instead if the user asks or says so when prompted. Use whenever the user asks to review, audit, or give feedback on a pull request touching Android (Kotlin, Jetpack Compose, Gradle), iOS (Swift, SwiftUI, UIKit), or KMP code — including phrases like "review this PR", "check my PR", "draft review", or a GitHub PR URL for a mobile repo. Reviews against up-to-date (2026) platform deprecations, Swift 6 / Compose best practices, code smells (unused code, dead code, poor structure), and software-engineering excellence standards.
+description: Expert Android & iOS PR review. Defaults to saving findings as a PENDING (draft) GitHub review — invisible until manually submitted — but posts them live instead when the user passes --live or asks for it. Use whenever the user asks to review, audit, or give feedback on a pull request touching Android (Kotlin, Jetpack Compose, Gradle), iOS (Swift, SwiftUI, UIKit), or KMP code — including phrases like "review this PR", "check my PR", "draft review", or a GitHub PR URL for a mobile repo. Reviews against up-to-date (2026) platform deprecations, Swift 6 / Compose best practices, code smells (unused code, dead code, poor structure), and software-engineering excellence standards.
 ---
 
 # Mobile PR Review — Expert Android & iOS Engineer
@@ -22,21 +22,16 @@ See step 3 for how each is dispatched, step 4 for the deprecation pass specifica
 
 ## 📮 Posting mode
 
-Before doing anything else, work out how the findings should be posted:
-
 - **Draft (the default)** — saved as a pending review, invisible to everyone but the author of the review until they open the PR and submit it themselves.
 - **Live** — posted the moment this skill finishes, visible to everyone on the PR immediately.
 
-Resolve this, in order:
-
-1. **An explicit flag in the invocation** (see Usage below: `--live`/`--now` selects Live, `--draft` selects Draft) — skip the question if one is present.
-2. **Otherwise, ask once, before pre-flight:** *"Should I hold these findings as a private draft you review and submit yourself, or post them live the moment I'm done? Draft is the default — just say so if you'd rather they go live right away."* Treat silence, "either," "you choose," or any other non-committal answer as **Draft**.
+Resolve it from the invocation alone, never by asking: **Live** only when the user passed `--live`/`--now` or asked for it in plain words ("post it live"); anything else — no flag, `--draft`, an ambiguous request — is **Draft**. Not asking keeps the run unattended; step 9's summary tells a Draft user how to go Live next time.
 
 Carry the resolved mode through the rest of the workflow — it decides the `event` field in step 8, the header in step 1, and the wording of the summary in step 9.
 
 ## 🔧 Fix mode (opt-in)
 
-By default this skill only ever posts comments — it never edits the target repo's files, in either posting mode. Passing `--apply-safe-fixes` turns on one additional, narrow capability: **after aggregation and dedup (steps 5–6), any surviving finding that already qualifies as a GitHub suggestion-block fix** — the same bar step 8 already uses to decide "suggestion vs language block" (1–3 line drop-in replacement, no surrounding context change, unambiguous correct code) — **gets applied directly to the working tree instead of posted as a comment.** Everything else — anything needing a language-block explanation, a design judgment call, or spanning multiple locations — is still just posted as a review comment, exactly as in the default mode.
+By default this skill only ever posts comments — it never edits the target repo's files, in either posting mode. Passing `--apply-safe-fixes` turns on one additional, narrow capability: **after aggregation and dedup (steps 5–6), any surviving finding that already qualifies as a GitHub suggestion-block fix** — the same bar step 8 already uses to decide "suggestion vs language block" (1–3 line drop-in replacement, no surrounding context change, unambiguous correct code) — **gets applied directly to the working tree** — and still posted as a comment unless you're the PR author, so the author always sees it. Everything else — anything needing a language-block explanation, a design judgment call, or spanning multiple locations — is still just posted as a review comment, exactly as in the default mode.
 
 This is opt-in only: without the flag, nothing changes from today's behavior — no edits, review-only, exactly as before. See step 7 for the mechanics and step 9 for how applied fixes show up in the summary.
 
@@ -56,20 +51,21 @@ This is opt-in only: without the flag, nothing changes from today's behavior —
 - **Draft mode:** never use `event: APPROVE`, `event: REQUEST_CHANGES`, or `event: COMMENT` — all three submit immediately. Omit the `event` field entirely; that's what keeps the review pending.
 - **Live mode:** use `event: COMMENT` only. Never `APPROVE` or `REQUEST_CHANGES` — this skill reports findings, it doesn't approve or block a PR, regardless of posting mode.
 - **Never use `gh pr review --comment`, `gh pr comment`, or the issues comments API**, in either mode — always the single `pulls/<number>/reviews` call in step 8, so every comment lands together in one review.
-- **Leave `body` empty (`""`)** in both modes — a non-empty body becomes a visible summary comment the moment the review is submitted (Draft) or posted (Live), and may not reflect the final, cross-checked set of findings.
-- Comment on diff `+` lines, or on a context/`-`-adjacent line that this diff left stale or orphaned (see "stranded artifacts from incomplete deletions" — caught by the Comment Analyzer and Code-Quality Reviewer passes) — but don't flag pre-existing code the diff never touched.
+- **The review `body` is the short summary defined in step 8, written only after steps 5–7 have settled the final findings** — never a preview of findings that may still change. In Draft mode it stays private with the rest of the review; in Live mode the API requires it (`body` is mandatory with `event: COMMENT`).
+- **Never build the payload inside the shell** (heredoc, `echo`, string interpolation). Comment bodies carry backticks and `$`, which the shell expands — corrupting inline code, and letting PR-derived text execute as a command. Write the JSON with the `Write` tool and pass it via `--input <file>`.
+- Comment on diff `+` lines, on a removed `-` line (`side: LEFT`), or on a context line that this diff left stale or orphaned (see "stranded artifacts from incomplete deletions" — caught by the Comment Analyzer and Code-Quality Reviewer passes) — but don't flag pre-existing code the diff never touched.
 - **Fix mode only edits what step 7 explicitly allows, and only the orchestrator does it — never a dispatched review pass.** Without `--apply-safe-fixes`, this skill never uses `Edit`/`Write` on the target repo, in either posting mode. Even with the flag, only a finding that already meets the suggestion-block bar, re-verified against the file's current content immediately before editing, may be touched — never a finding needing a language-block explanation or spanning multiple locations.
 - Use the authenticated GitHub account shown in `gh auth status`.
 - **If the reviews API call fails, do not fall back to any other posting mechanism, in either mode.** Report the error in the terminal and tell the user to post manually. A failed post is better than an accidental or malformed one.
 
 ## Usage
 
-Invoke with a PR URL or number, optionally naming a posting mode to skip the prompt, and optionally opting into review mode and/or fix mode:
+Invoke with a PR URL or number, optionally choosing Live posting, and optionally opting into review mode and/or fix mode:
 ```
 /review-mobile-pr https://github.com/<org>/<repo>/pull/<number>
-/review-mobile-pr <number>                       # when already inside the repo; asks Draft-or-Live before posting
-/review-mobile-pr <number> --live                # skip the question — post live immediately
-/review-mobile-pr <number> --draft               # skip the question — save as a pending review (the default anyway)
+/review-mobile-pr <number>                       # when already inside the repo; saves a pending (draft) review
+/review-mobile-pr <number> --live                # post live immediately instead
+/review-mobile-pr <number> --draft               # explicit draft (the default anyway)
 /review-mobile-pr <number> --lite                # cheaper dispatch — only Bug Hunter + Code-Quality Reviewer; skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes    # also apply narrow, safe fixes directly; everything else still gets posted as a review comment
 ```
@@ -97,7 +93,7 @@ The reference files above are self-contained — a review is fully covered with 
 
 ### 1. Pre-flight
 
-Resolve the posting mode first (see "Posting mode" above) if it isn't already clear from the invocation. Also resolve review mode: full (default) unless `--lite` was passed.
+Resolve the posting mode from the invocation (see "Posting mode" above — no question). Also resolve review mode: full (default) unless `--lite` was passed.
 
 ```bash
 gh auth status   # must succeed — stop if not authenticated
@@ -105,17 +101,22 @@ gh auth status   # must succeed — stop if not authenticated
 
 Parse the PR URL/number to extract `owner`, `repo`, `pr_number`.
 
-These four calls are independent — run them as separate tool calls in one batch rather than one after another:
+These calls are independent — run them as separate tool calls in one batch rather than one after another:
 
 ```bash
 gh pr view <number> --repo <owner>/<repo> \
-  --json number,title,body,baseRefName,headRefName,state,files
+  --json number,title,body,baseRefName,headRefName,headRefOid,author,state,files
 gh pr diff <number> --repo <owner>/<repo>
 gh api repos/<owner>/<repo>/pulls/<number>/comments --paginate   # existing inline review comments
 gh api repos/<owner>/<repo>/issues/<number>/comments --paginate  # existing top-level PR comments
+gh api repos/<owner>/<repo>/pulls/<number>/reviews --paginate \
+  --jq '.[] | select(.state == "PENDING") | .id'                  # your own pending review, if any
+mktemp -d                                                        # run directory for this review's files
 ```
 
-Keep the existing comments on hand — you'll cross-check your findings against them before posting (step 6).
+**Stop if a pending review id comes back.** GitHub allows one pending review per user per PR, so step 8's POST would fail after the whole review had already been paid for — and that earlier draft's comments are invisible to the cross-check. Tell the user to submit or delete their pending review in the PR's GitHub UI, then re-run.
+
+Keep `headRefOid` (step 8 pins the review to it), the PR author's login (step 7), and the run directory's absolute path — shell state doesn't persist between tool calls, so reuse the literal path. Keep the existing comments on hand — you'll cross-check your findings against them before posting (step 6).
 
 Show header (with the resolved posting mode; append ` · lite` when `--lite` was resolved):
 ```
@@ -207,7 +208,7 @@ Skip this step entirely, and go straight to step 8, unless `--apply-safe-fixes` 
 For each finding surviving step 6 that meets the `suggestion` bar in step 8 ("Use `suggestion` when…" — a 1–3 line drop-in replacement, no surrounding context change, unambiguous correct code):
 
 1. **Re-read the target file at the claimed line** to confirm its current content still matches what the finding describes — line numbers can drift between when a pass computed them and now.
-2. **If it matches**, apply the fix with `Edit`, using the pass's suggested replacement verbatim. Remove it from the pool step 8 posts as a comment; add it to an "applied fixes" list for the summary instead.
+2. **If it matches**, apply the fix with `Edit`, using the pass's suggested replacement verbatim, and add it to an "applied fixes" list for the summary. Remove it from the pool step 8 posts **only when the authenticated `gh` user is the PR author** — otherwise keep posting it, since the author never sees a fix that stays in the reviewer's local tree.
 3. **If it doesn't match** (line moved, content differs, ambiguous), leave the finding in the pool for step 8 to post as a normal comment — never guess at a corrected line number.
 4. **Never auto-apply** a finding that needs a language-block explanation, spans multiple locations, or requires a judgment call — those always stay comments, fix mode or not.
 
@@ -216,34 +217,49 @@ After applying fixes, best-effort validate the touched files: look for a discove
 ### 8. Post findings
 
 - **No top-level PR comments** (`gh pr review --comment`, `gh pr comment`, `gh api .../issues/.../comments`) — in either mode, these post immediately and bypass the one-shot review call below
-- **No review body/summary** — leave the `body` field empty (`""`) in both modes
-- **Inline comments only**, scoped to specific diff lines
+- **One review, posted once**: inline comments plus the short summary body below
+- **Nothing survived steps 5–7? Don't POST at all.** An empty Draft review would block the next run (see step 1's pending-review check); skip to step 9 and report "no findings, nothing posted."
 
-Use the GitHub API — the payload is identical in both modes except for one field:
+**Anchoring.** Every inline comment must sit on a line inside the diff, or GitHub rejects the whole review: a `+` or context line uses `"side": "RIGHT"` with its new-file line number; a removed `-` line uses `"side": "LEFT"` with its old-file line number. A finding whose real location is outside the diff — a forgotten call site in an untouched file, a missing test file — goes on the diff line that caused it (e.g. the rename), naming the out-of-diff location(s) in the comment ("Still calls the old name: `Foo.kt:88`, `Bar.kt:12`"). A finding no diff line causes (PR scope, PR description) goes in the body's "Not tied to a diff line" list instead.
 
-```bash
-gh api repos/<owner>/<repo>/pulls/<number>/reviews \
-  --method POST \
-  --input - <<EOF
+**Body** — short, plain, written last:
+
+```
+🔴 <n> · 🟠 <n> · 🟡 <n> · 🟢 <n> · ❓ <n>
+Top risk: <one line, `file` named — omit when there are no 🔴/🟠 findings>
+
+**Not tied to a diff line:**          ← omit section when empty
+- <title> — <one sentence>
+```
+
+Write the payload to `<run dir>/review.json` with the `Write` tool (see the Safety contract — never a heredoc), then post it:
+
+```json
 {
-  "body": "",
+  "commit_id": "<headRefOid from pre-flight>",
+  "body": "<summary body above>",
   "comments": [
     {
       "path": "<relative file path>",
-      "line": <line number in the file>,
+      "line": <line number>,
       "side": "RIGHT",
       "body": "<comment body>"
     }
   ]
 }
-EOF
 ```
+
+```bash
+gh api repos/<owner>/<repo>/pulls/<number>/reviews --method POST --input <run dir>/review.json
+```
+
+`commit_id` pins every comment to the commit the passes actually reviewed — without it GitHub uses the latest commit, which may have been pushed mid-review.
 
 **Draft mode: send the payload exactly as above, with no `event` field.** Omitting `event` is what tells the GitHub API to save the review as pending — invisible until manually submitted. Passing `"event": "PENDING"` returns a 422 error.
 
-**Live mode: add `"event": "COMMENT"` to the top-level object** (alongside `"body"` and `"comments"`). This posts the review — and every inline comment in it — the moment the call succeeds. Never pass `APPROVE` or `REQUEST_CHANGES` here; this skill reports findings, it doesn't gate the PR.
+**Live mode: add `"event": "COMMENT"` to the top-level object.** This posts the review — body and every inline comment — the moment the call succeeds. Never pass `APPROVE` or `REQUEST_CHANGES` here; this skill reports findings, it doesn't gate the PR.
 
-For a multi-line finding, add `"start_line": <first line>` and `"start_side": "RIGHT"` alongside `line` (the last line of the range) — in either mode.
+For a multi-line finding, add `"start_line": <first line>` and `"start_side"` (same side as `side`) alongside `line` (the last line of the range) — in either mode.
 
 ### Comment format
 
@@ -300,7 +316,7 @@ Tone: findings, not verdicts. State the problem and its consequence; don't lectu
 
 ### 9. Summary
 
-After posting, print (heading depends on the resolved posting mode; append ` · lite` when `--lite` was resolved):
+After posting, print (heading depends on the resolved posting mode; append ` · lite` when `--lite` was resolved). If step 8 skipped posting because nothing survived, print `✅ No findings — nothing posted` in place of the heading and omit the posting-mode lines:
 
 ```
 ✅ Draft review saved (NOT submitted)          [Draft mode]
@@ -328,11 +344,12 @@ By category:
 
 🔧 Fixes applied directly (--apply-safe-fixes): <n>          [only if fix mode was on]
 🔎 Validation: <command run and result, or "skipped: <reason>">   [only if fix mode was on]
+<git diff --stat of the applied fixes> — uncommitted, not pushed  [only if fix mode applied any]
 
 Review URL: https://github.com/<owner>/<repo>/pull/<number>
 
 The review is pending. Open the PR in GitHub to inspect, edit,       [Draft mode]
-or submit your comments when ready.
+or submit your comments when ready. (Pass --live to post directly next time.)
 The review is live — comments are already visible on the PR.        [Live mode]
 
 💡 For deeper platform coverage next run, install: <platform>: <skill source>, <platform>: <skill source>, ...   [only if step 2's "no skill installed for" list is non-empty]
@@ -349,7 +366,7 @@ Do **not** fall back to `gh pr review --comment` or any other posting mechanism,
 Error: <error message>
 
 Findings are printed below for your reference.
-Nothing was posted to GitHub.
+Nothing was posted to GitHub. The payload is at <run dir>/review.json.
 
 <full findings report>
 ```
