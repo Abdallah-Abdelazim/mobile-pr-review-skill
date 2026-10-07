@@ -5,7 +5,8 @@ Owns the PR-review orchestration logic (`SKILL.md`), the 6 review-pass prompts (
 ## Entry Points
 
 - `SKILL.md` - the orchestrator: pre-flight, platform detection + external-skill resolution, pass dispatch, aggregation (with confidence-based filtering), cross-check against existing PR comments, opt-in safe-fix application, posting, summary
-- `scripts/prepare-diff.sh` - annotates the PR diff with per-line `R<n>`/`L<n>` numbers (and collapses lockfile/binary/snapshot noise); `check` mode validates comment anchors before step 8 posts
+- `scripts/prepare-diff.sh` - annotates the PR diff with per-line `R<n>`/`L<n>` numbers (and collapses lockfile/binary/snapshot noise); `check` mode validates comment anchors before step 8 posts; `slice` mode cuts per-shard diffs for Bug Hunter on large PRs
+- `references/deprecation-symbols.txt` - grep patterns gating the Deprecation Scanner (step 4); keep in step with the deprecation tables
 - `passes/*.md` - one prompt file per review pass (persona, checklist, severity tiers); the pass reads it itself, the orchestrator never loads or pastes it
 - `references/android.md`, `references/ios.md`, `references/kmp.md`, `references/engineering-excellence.md` (checklists) and `references/android-deprecations.md`, `references/ios-deprecations.md` (deprecation tables, Deprecation Scanner only) - read directly by dispatched passes via their `Read` tool, given as absolute paths the orchestrator resolves itself — never pasted inline as excerpts
 
@@ -32,6 +33,7 @@ Adding coverage for a new platform API/feature:
 1. Find the matching H2 section in the relevant reference file (or add a new one if it's a genuinely new area — see `kmp.md`'s "Compose Multiplatform" section for an example of a whole new section added this way)
 2. Write terse checklist bullets matching the surrounding style — problem + why it matters + the fix, not an essay
 3. If a new H2 section was added to `android.md`/`ios.md`, update that file's Table of contents
+   - A new deprecation-table row also needs a matching pattern in `deprecation-symbols.txt`, or step 4's pre-scan never dispatches the scanner for it
 4. Mirror the change into the sibling copy at `~/.claude/skills/review-mobile-pr/references/` (see root `CLAUDE.md`'s parity invariant) — verify with `diff` before committing
 
 This is still where platform-API substance belongs, even though an external skill might also cover it — the bundled files are the floor a review meets with nothing else installed, so they can't be allowed to fall behind just because some installs also happen to have deeper coverage from elsewhere.

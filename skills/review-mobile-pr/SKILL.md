@@ -13,8 +13,8 @@ This skill is fully self-contained — no separate agent files, no external depe
 |---|---|---|
 | Bug Hunter | Correctness — forgotten call sites, unhappy paths, wrong logic, non-exhaustive branching, contract mismatches, concurrency correctness — plus a dedicated error-handling lens: swallowed exceptions, unjustified fallbacks, overly broad catches | Always |
 | Code-Quality Reviewer | Code smells, dead/unused code, duplication, SOLID/naming/PR-scope, platform checklist backstop | Always |
-| Deprecation Scanner | APIs deprecated/superseded/removed as of 2026 (Android 16/API 36, Swift 6, iOS 17–26) — extends beyond what a generic review tool tracks | Always, when the diff touches Android and/or iOS files — skipped under `--lite` |
-| Test Analyzer | Test coverage gaps, tests that don't exercise what they claim to | Always — skipped under `--lite` |
+| Deprecation Scanner | APIs deprecated/superseded/removed as of 2026 (Android 16/API 36, Swift 6, iOS 17–26) — extends beyond what a generic review tool tracks | When the diff touches Android and/or iOS files **and** an added line matches `references/deprecation-symbols.txt` (step 4) — skipped under `--lite` |
+| Test Analyzer | Test coverage gaps, tests that don't exercise what they claim to | When the diff changes non-test code or tests — skipped under `--lite` |
 | Comment Analyzer | Comment/doc accuracy, stranded artifacts from incomplete deletions | When the diff adds/modifies comments or doc comments — skipped under `--lite` |
 | Type-Design Analyzer | Type encapsulation and invariant expression | When the diff adds/reshapes a data class, sealed class/interface, enum, struct, or protocol — skipped under `--lite` |
 
@@ -76,6 +76,7 @@ Invoke with a PR URL or number, optionally choosing Live posting, and optionally
 /review-mobile-pr <number> --lite                # cheaper dispatch — only Bug Hunter + Code-Quality Reviewer; skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes    # also apply narrow, safe fixes directly; everything else still gets posted as a review comment
 /review-mobile-pr <number> --dry-run             # full review, print the would-be review, post nothing
+/review-mobile-pr <number> --since-last          # re-review only the commits pushed since your last review
 /review-mobile-pr --local [<base>]               # review the current branch vs <base> (default origin's default branch); no GitHub calls
 ```
 Flags combine freely — e.g. `--lite --apply-safe-fixes` runs the narrow pass set and still applies any suggestion-grade fix that survives it.
@@ -127,7 +128,8 @@ gh api repos/<owner>/<repo>/pulls/<number>/comments --paginate \
 gh api repos/<owner>/<repo>/issues/<number>/comments --paginate \
   --jq '.[] | {user: .user.login, body: (.body // "")[0:400]}'
 gh api repos/<owner>/<repo>/pulls/<number>/reviews --paginate \
-  --jq '.[] | {id, state, user: .user.login, body: (.body // "")[0:400]}'
+  --jq '.[] | {id, state, commit_id, user: .user.login, body: (.body // "")[0:400]}'
+gh api user --jq .login                                          # you, to find your own earlier reviews
 ```
 
 The `--jq` projections matter: raw comment JSON carries user objects, links, reactions and `diff_hunk`, and on a busy PR runs to tens of thousands of tokens of nothing you use. Review bodies are fetched because bots often put their findings there.
@@ -150,11 +152,13 @@ Each `+`/context line is prefixed `R<n>` (its new-file line, for `side: RIGHT`),
 
 If `closingIssuesReferences` names linked issues, fetch the first two: `gh issue view <n> --repo <owner>/<repo> --json title,body --jq '.title + "\n" + (.body // "")[0:1500]'` — their acceptance criteria are the best statement of intent there is, and Bug Hunter checks the diff against it.
 
+**`--since-last`** (re-review): your most recent submitted review on this PR (state not `PENDING`, `user` = you) gives `<last>` = its `commit_id`. Once the checkout below exists, if `<last>` is an ancestor of `headRefOid` (`git -C <repo root> merge-base --is-ancestor <last> <headRefOid>`), keep the full annotated diff as `<run dir>/full.diff` and replace `pr.diff` with the annotated `git -C <repo root> diff <last> <headRefOid>` — passes then review only what changed since you last looked, while step 8 still validates anchors against `full.diff`. Fall back to a normal full review, and say why in the summary, when you have no earlier review, `<last>` equals `headRefOid`, `<last>` isn't an ancestor (force-push), or there's no local clone.
+
 Keep `headRefOid` (step 8 pins the review to it), the PR author's login (step 7) and the repo root. Keep the projected comments on hand — you'll cross-check your findings against them before posting (step 6).
 
 Show header (with the resolved posting mode — or `dry run` / `local vs <base>`; append ` · lite` when `--lite` was resolved; under `--local` the PR/branch lines become the branch name and `<base> ← HEAD`):
 ```
-🔍 Mobile PR Review (draft | live | dry run | local vs <base>)[ · lite]
+🔍 Mobile PR Review (draft | live | dry run | local vs <base>)[ · lite][ · since <sha7>]
 📋 PR #<number>: <title>
 🔀 <base> ← <head>
 📂 Files changed: <count>
@@ -192,24 +196,26 @@ Each dispatched prompt is then one line — *"You are the <pass> pass of a PR re
 
 Decide the conditional dispatches below by grepping `pr.diff` rather than reading it: comment text on changed lines (`grep -E '^[RL][0-9]+ [+-][[:space:]]*(//|/\*|\*|#)'`) or deletions next to comment lines (any `L<n> -` line plus a comment line in the same hunk), type declarations on changed lines (`grep -E '^[RL][0-9]+ [+-].*\b(data class|sealed (class|interface)|enum class|struct|protocol|enum) '`).
 
-**Exception — tiny diffs.** For a genuinely small, low-risk diff (a handful of changed lines in one file — a typo fix, a comment-only edit, a one-line constant/config change, a single trivial rename with no logic change), it's acceptable to review it yourself directly instead of dispatching the passes below: read `pr.diff`, the touched file(s) and the platform reference file(s) from step 2, and apply the same checks the relevant passes would run. Still produce findings in the `passes/shared.md` JSON schema and severity scale, so steps 5 onward work unchanged. Fall back to full dispatch whenever the diff has any real logic, spans more than a file or two, or touches money/auth/PII/concurrency — that's exactly the size and risk the parallel passes exist for. This exception takes precedence over `--lite` too — a tiny diff always gets zero-dispatch local review, `--lite` or not.
+**Exception — tiny diffs.** Every dispatched pass costs roughly 70k tokens before it reads a single diff line (measured in `evals/results.md`), so a diff that meets **all** of these is reviewed by you directly, with zero dispatch: at most **30 changed lines** (`added + removed` from step 1's stats) in at most **2 files**; no control-flow change (no added/removed `if`/`when`/`switch`/`guard`/loop/`try`/`catch`/early `return`); and no file whose path suggests auth, payment, persistence, crypto or concurrency. Typical: a typo, a string or config value, a comment edit, a trivial rename. Then read `pr.diff`, the touched file(s) and the platform reference file(s) from step 2, and apply the same checks the relevant passes would run. Still produce findings in the `passes/shared.md` JSON schema and severity scale, so steps 5 onward work unchanged. If you notice real logic once you're reading it, stop and dispatch normally — that's exactly the size and risk the parallel passes exist for. This exception takes precedence over `--lite` too — a tiny diff always gets zero-dispatch local review, `--lite` or not.
 
-**`--lite` mode.** When `--lite` was resolved (see "Review mode" above) and the diff isn't tiny, dispatch only Bug Hunter and Code-Quality Reviewer from the "Always dispatch" table below — skip Test Analyzer, skip both rows of the "Dispatch conditionally" table regardless of whether their condition matches, and skip step 4's Deprecation Scanner entirely. Everything else in this step (context-file dispatch, verify-before-trusting) applies unchanged to the two passes that do run.
+**`--lite` mode.** When `--lite` was resolved (see "Review mode" above) and the diff isn't tiny, dispatch only Bug Hunter and Code-Quality Reviewer from the "Always dispatch" table below — skip every row of the "Dispatch conditionally" table (Test Analyzer included) regardless of whether its condition matches, and skip step 4's Deprecation Scanner entirely. Everything else in this step (context-file dispatch, verify-before-trusting) applies unchanged to the two passes that do run.
 
-Always dispatch (in full mode; under `--lite`, only the first row runs):
+Always dispatch (in full mode and under `--lite`):
 
 | Pass | Focus |
 |---|---|
 | Bug Hunter | Bug hunt — forgotten call sites, unhappy paths, wrong/non-exhaustive logic, contract mismatches, resource-lifecycle leaks, concurrency correctness — plus a dedicated adversarial error-handling lens: swallowed exceptions, inadequate error handling, unjustified fallbacks, overly broad catches. The highest-value pass. |
 | Code-Quality Reviewer | Code smells & hygiene, dead code, duplication, SOLID/naming/PR-scope standards, plus the platform checklist backstop (architecture, Compose/SwiftUI, DI, security, performance, a11y, localisation, build hygiene). |
-| Test Analyzer | Behavioral test coverage gaps, untested edge cases, and tests that don't actually exercise what they claim to. **Skipped under `--lite`.** |
 
-Dispatch conditionally, only when relevant to this diff (neither row dispatches under `--lite`, even if its condition matches):
+Dispatch conditionally, only when relevant to this diff (no row dispatches under `--lite`, even if its condition matches):
 
 | Pass | Include when |
 |---|---|
+| Test Analyzer | The diff changes code in a non-test source file, or changes a test file. **Not** for a diff that only touches resources, build files, docs, comments or formatting — the pass can only say "nothing to test". |
 | Comment Analyzer | The diff adds new comment/KDoc/doc-comment text, or changes what an existing one says, **or** deletes code in a hunk that also contains a comment — the "stranded artifacts from incomplete deletions" case (a comment left behind by a deletion), which only this pass checks. **Not** just because a comment's line number moved — a diff hunk that reflows or relocates code without changing any comment's actual text doesn't qualify on its own. |
 | Type-Design Analyzer | The diff adds a new `data class`, `sealed class`/`interface`, `enum class`, or Swift `struct`/`protocol`/`enum`, or changes an existing one's *shape* in a way that could affect its invariants (a new variant/case, a nullability or mutability change, new mutually-exclusive fields). **Not** a mechanical addition to an already-sound type (e.g. one more field with an obvious default, threaded through call sites) — that's the Bug Hunter's and Code-Quality Reviewer's territory. |
+
+**Shard Bug Hunter on large diffs.** When `added + removed` exceeds 1,500 lines, one Bug Hunter's attention thins out across the diff. Split the changed files into 2–3 groups by module or top-level directory (keep a file with its tests and its closest callers), write each group's paths to `<run dir>/shard-<n>.txt`, slice the diff with `<skill dir>/scripts/prepare-diff.sh slice <run dir>/pr.diff < <run dir>/shard-<n>.txt > <run dir>/shard-<n>.diff`, and dispatch one Bug Hunter per shard, pointing it at its `shard-<n>.diff` instead of `pr.diff` and adding to its one-line prompt: *"Your shard is the files in this diff; `context.md` lists the whole PR's files — read others only to check a call site or contract."* Other passes stay single. Shards' findings merge in step 5 like any other pass's.
 
 The deprecation pass is dispatched separately in step 4, since it needs the deprecation-table reference files specifically and nothing else — and, like the two tables above, is skipped entirely under `--lite`.
 
@@ -217,7 +223,7 @@ The deprecation pass is dispatched separately in step 4, since it needs the depr
 
 ### 4. Deprecation & modernity pass
 
-Skip this step entirely under `--lite` (see "Review mode" above). Otherwise, dispatch the Deprecation Scanner pass (in the same parallel batch as step 3, or right after — either is fine) whenever the diff touches Android and/or iOS files. Dispatch it exactly like step 3's passes (one-line prompt pointing at `context.md`, `pr.diff` and `passes/deprecation-scanner.md`); `context.md` already lists the `android-deprecations.md`/`ios-deprecations.md` path(s) and any installed Android/iOS skill. It reads the deprecation tables itself and flags newly-added usage of anything deprecated, removed, or superseded as of 2026 (Android 16/API 36, Swift 6, iOS 17–26), web-searching anything it doesn't recognize rather than guessing. Skip this dispatch entirely for a pure-KMP-common diff with no `androidMain`/`iosMain` files touched.
+Skip this step entirely under `--lite` (see "Review mode" above). Otherwise, when the diff touches Android and/or iOS files, pre-scan the added lines first: `grep -E '^R[0-9]+ \+' <run dir>/pr.diff | grep -Ec -f <skill dir>/references/deprecation-symbols.txt`. **Zero matches → skip the pass** and note `deprecation scan: no candidate symbols` in the summary — a pass costs ~70k tokens and the baseline evals show it returns nothing on such diffs. Any match → dispatch the Deprecation Scanner (in the same parallel batch as step 3). Dispatch it exactly like step 3's passes (one-line prompt pointing at `context.md`, `pr.diff` and `passes/deprecation-scanner.md`); `context.md` already lists the `android-deprecations.md`/`ios-deprecations.md` path(s) and any installed Android/iOS skill. It reads the deprecation tables itself and flags newly-added usage of anything deprecated, removed, or superseded as of 2026 (Android 16/API 36, Swift 6, iOS 17–26), web-searching anything it doesn't recognize rather than guessing. Skip this dispatch entirely for a pure-KMP-common diff with no `androidMain`/`iosMain` files touched.
 
 ### 5. Aggregate, verify and budget findings
 
@@ -300,7 +306,7 @@ Write the payload to `<run dir>/review.json` with the `Write` tool (see the Safe
 gh api repos/<owner>/<repo>/pulls/<number>/reviews --method POST --input <run dir>/review.json
 ```
 
-**Validate every anchor before posting.** Write `<run dir>/anchors.tsv` (one `path<TAB>RIGHT|LEFT<TAB>line` row per comment, plus one per `start_line`) with the `Write` tool, then run `<skill dir>/scripts/prepare-diff.sh check <run dir>/pr.diff < <run dir>/anchors.tsv`. It prints each anchor that isn't in the diff. Fix each one per the anchoring rules above (move it to a changed line in the same hunk, or to the body's list) — never post an unvalidated anchor, because one bad line makes GitHub reject the whole review. If the POST still returns 422, the error names the offending comment: move it to the body's list and retry once.
+**Validate every anchor before posting.** Write `<run dir>/anchors.tsv` (one `path<TAB>RIGHT|LEFT<TAB>line` row per comment, plus one per `start_line`) with the `Write` tool, then run `<skill dir>/scripts/prepare-diff.sh check <run dir>/pr.diff < <run dir>/anchors.tsv` (under `--since-last`, check against `<run dir>/full.diff` instead — GitHub anchors to the whole PR diff, and a `LEFT` line from the incremental diff usually isn't in it). It prints each anchor that isn't in the diff. Fix each one per the anchoring rules above (move it to a changed line in the same hunk, or to the body's list) — never post an unvalidated anchor, because one bad line makes GitHub reject the whole review. If the POST still returns 422, the error names the offending comment: move it to the body's list and retry once.
 
 **Under `--local` or `--dry-run`, stop here instead of POSTing** (validate anchors first — under `--local` that still catches bad line numbers): write `<run dir>/findings.md` with the `Write` tool — the body, then each comment as `### <path>:<line> (<side>)` followed by its body — and print it in full. Under `--local` there's no `commit_id` or payload file to build.
 
@@ -427,6 +433,7 @@ Review URL: https://github.com/<owner>/<repo>/pull/<number>
 
 The review is pending. Open the PR in GitHub to inspect, edit,       [Draft mode]
 or submit your comments when ready. (Pass --live to post directly next time.)
+💡 You reviewed this PR before (at <sha7>); --since-last reviews only newer commits.   [only without --since-last, when you have an earlier review at another commit]
 The review is live — comments are already visible on the PR.        [Live mode]
 
 💡 For deeper platform coverage next run, install: <platform>: <skill source>, <platform>: <skill source>, ...   [only if step 2's "no skill installed for" list is non-empty]

@@ -22,7 +22,7 @@ Every pass reads a platform reference checklist matching the diff — `android.m
 
 No separate agent files and no external dependency beyond the GitHub CLI (plus `bash`/`awk`, standard on macOS and Linux) — everything this skill needs, including every review pass's prompt and every platform reference file, ships inside this one skill directory; a review is fully covered with nothing else installed. For a genuinely small, low-risk diff (a typo fix, a comment-only edit), it may review directly instead of dispatching all 6 passes — same findings, less overhead.
 
-Three cost tiers, from cheapest to most thorough: the tiny-diff shortcut above (zero dispatch, always wins when it applies), `--lite` (2 passes — Bug Hunter + Code-Quality Reviewer only, see below), and the full 6-pass dispatch (the default for anything that isn't tiny).
+Each review pass costs roughly 70k tokens before it reads the diff, so the skill only dispatches passes with something to check: Test Analyzer only when code or tests changed, Deprecation Scanner only when an added line matches a known deprecated symbol, Comment and Type-Design Analyzers only when comments or types changed. Three cost tiers, from cheapest to most thorough: the tiny-diff shortcut above (≤30 changed lines in ≤2 files with no control-flow change — zero dispatch, always wins when it applies), `--lite` (2 passes — Bug Hunter + Code-Quality Reviewer only, see below), and the full 6-pass dispatch (the default for anything that isn't tiny).
 
 ## Optional: deeper platform coverage
 
@@ -57,6 +57,7 @@ This drops the skill into `.claude/skills/review-mobile-pr/` in the current proj
 /review-mobile-pr <number> --lite              # cheaper — only Bug Hunter + Code-Quality Reviewer, skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes  # also apply narrow, safe fixes directly instead of just commenting on them
 /review-mobile-pr <number> --dry-run           # full review, print the would-be review, post nothing
+/review-mobile-pr <number> --since-last        # re-review only the commits pushed since your last review
 /review-mobile-pr --local [<base>]             # self-review the current branch vs <base> before opening a PR; no GitHub calls
 ```
 Flags combine — `--lite --apply-safe-fixes` works together.

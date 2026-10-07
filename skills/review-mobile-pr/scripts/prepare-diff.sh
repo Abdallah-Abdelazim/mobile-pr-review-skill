@@ -2,6 +2,7 @@
 # Usage:
 #   prepare-diff.sh annotate < raw.diff > pr.diff   # prints "files=N added=X removed=Y" to stderr
 #   prepare-diff.sh check pr.diff < anchors.tsv     # anchors: path<TAB>RIGHT|LEFT<TAB>line; prints invalid ones, exit 1 if any
+#   prepare-diff.sh slice pr.diff < paths.txt > shard.diff   # keeps only the sections for the listed paths (one per line)
 set -euo pipefail
 
 # Lockfiles, binaries, snapshots and build output: reviewed by stat line only.
@@ -50,8 +51,17 @@ check() {
   ' FS=' ' "$1" FS='\t' -
 }
 
+slice() {
+  awk '
+    FNR == NR { want[$0] = 1; next }
+    /^=== / { path = substr($0, 5); sub(/ \(omitted: .*$/, "", path); keep = (path in want) }
+    keep
+  ' - "$1"
+}
+
 case "${1:-}" in
   annotate) annotate ;;
   check) check "$2" ;;
-  *) echo "usage: $0 annotate | check <pr.diff>" >&2; exit 2 ;;
+  slice) slice "$2" ;;
+  *) echo "usage: $0 annotate | check <pr.diff> | slice <pr.diff>" >&2; exit 2 ;;
 esac
