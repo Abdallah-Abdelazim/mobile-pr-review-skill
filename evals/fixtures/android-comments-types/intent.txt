@@ -1,0 +1,3 @@
+Simplify user formatting and add LoadResult
+
+Drop title support from formatUser and add a LoadResult type for the profile loader.

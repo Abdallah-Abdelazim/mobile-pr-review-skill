@@ -56,6 +56,8 @@ This drops the skill into `.claude/skills/review-mobile-pr/` in the current proj
 /review-mobile-pr <number> --draft             # explicit draft (the default anyway)
 /review-mobile-pr <number> --lite              # cheaper — only Bug Hunter + Code-Quality Reviewer, skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes  # also apply narrow, safe fixes directly instead of just commenting on them
+/review-mobile-pr <number> --dry-run           # full review, print the would-be review, post nothing
+/review-mobile-pr --local [<base>]             # self-review the current branch vs <base> before opening a PR; no GitHub calls
 ```
 Flags combine — `--lite --apply-safe-fixes` works together.
 

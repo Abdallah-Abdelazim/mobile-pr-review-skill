@@ -1,0 +1,3 @@
+Show an error when submitting invalid login input
+
+Tapping submit with an invalid email or password now shows an inline error.

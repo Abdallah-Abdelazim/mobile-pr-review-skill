@@ -8,9 +8,12 @@ An agent skill (`review-mobile-pr`) for expert Android/iOS/KMP PR review — an 
 
 - **Review knowledge base & orchestration**: `skills/review-mobile-pr/CLAUDE.md` - the skill itself (SKILL.md, the `passes/*.md` review-pass prompts), the bundled platform review reference docs it reads, and how it optionally layers in external skills as extra depth at review time
 
+- **Evals**: `evals/README.md` - seeded-bug fixtures, a setup script and a grader prompt for measuring review quality and cost before/after a change
+
 ```
 mobile-pr-review-skill/
-└── skills/review-mobile-pr/ # the skill — see its CLAUDE.md
+├── skills/review-mobile-pr/ # the skill — see its CLAUDE.md
+└── evals/                   # quality/cost benchmark — not shipped with the skill
 ```
 
 ## Key Invariants
@@ -22,6 +25,8 @@ mobile-pr-review-skill/
 - `SKILL.md` also implements an opt-in **fix mode** (`--apply-safe-fixes`) that lets the orchestrator itself apply narrow, suggestion-block-grade fixes directly via `Edit`, instead of only posting comments — the only place in this skill anything ever touches the target repo's files. Every dispatched review pass stays read-only; only step 7 of `SKILL.md`'s workflow may edit, and only for a finding it re-verifies immediately beforehand.
 - No review pass, and no step in `SKILL.md`, may use `gh pr review --comment`, `gh pr comment`, or the issues comments API — everything posts through the single `pulls/<number>/reviews` call in step 8, so draft and live comments always land together in one review.
 - Step 8's payload is written to a file with the `Write` tool and posted via `--input <file>` — never assembled in a shell heredoc/`echo` (the shell expands backticks and `$` in comment bodies, and PR-derived text could execute). It always pins `commit_id` to pre-flight's `headRefOid`, and its `body` is the short post-cross-check summary step 8 defines (required by the API for Live's `event: COMMENT`).
+- `--local [<base>]` and `--dry-run` never POST anything: `--local` makes no GitHub calls at all (git diff vs base, no cross-check), `--dry-run` stops step 8 after anchor validation. Both write the would-be review to `<run dir>/findings.md`, which is exactly what `evals/grader.md` scores — keep that file's format (body, then `### <path>:<line> (<side>)` per comment) in step with the grader.
+- Run `evals/` (see its README) before and after any change that affects review output — pass prompts, references, dedup/severity/format rules — and record the rows in `evals/results.md`.
 - Every dispatched pass reports a `<confidence: HIGH/MEDIUM/LOW>` alongside its severity; step 5 drops LOW-confidence findings outright before cross-check. Don't remove the confidence field from a pass's output-format line without also updating step 5's filtering logic.
 - Step 3 has a **tiny-diff exception**: for a genuinely small, low-risk diff, the orchestrator may review it directly instead of dispatching the full set of passes, as long as it still produces findings in the same output-format shape. This is a deliberate cost/latency shortcut, not a loophole to skip review rigor on anything with real logic.
 - `SKILL.md`'s frontmatter has no `model:` field on purpose — the skill (and every pass it dispatches as a general-purpose agent) runs on whatever model the session already has selected. Don't re-pin one without a specific reason, and if you do, say why in the same commit.

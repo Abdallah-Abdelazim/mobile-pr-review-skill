@@ -1,0 +1,3 @@
+Show a featured item and support coupons in the cart
+
+The cart screen highlights the first item as "featured" and lets the user apply a coupon code; the discount is shown on the cart.

@@ -45,6 +45,13 @@ This is a deliberate coverage-for-cost tradeoff, not a bug: under `--lite` there
 
 This is opt-in only: without the flag, nothing changes from today's behavior — full dispatch, exactly as before. There's no auto-detection by diff size; the user decides.
 
+## 🧪 Local and dry-run modes (opt-in)
+
+- **`--local [<base>]`** — review the current branch against `<base>` (default: the remote's default branch, e.g. `origin/main`) with no GitHub calls at all: no PR, no existing-comment cross-check, nothing posted. For a self-review before opening a PR, and for this skill's eval fixtures.
+- **`--dry-run`** — a normal PR review that stops short of posting: step 8 builds and validates `review.json` but never POSTs.
+
+Both print the would-be review — body plus every comment in final comment format — and write it to `<run dir>/findings.md`. Posting mode doesn't apply under either.
+
 ## ⛔ Safety contract (read this first)
 
 - **Draft is the safe default and stays invisible until the human submits it.** Only switch to Live when the posting mode above actually resolved to Live — never post live "just in case" or because it seemed faster.
@@ -68,6 +75,8 @@ Invoke with a PR URL or number, optionally choosing Live posting, and optionally
 /review-mobile-pr <number> --draft               # explicit draft (the default anyway)
 /review-mobile-pr <number> --lite                # cheaper dispatch — only Bug Hunter + Code-Quality Reviewer; skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes    # also apply narrow, safe fixes directly; everything else still gets posted as a review comment
+/review-mobile-pr <number> --dry-run             # full review, print the would-be review, post nothing
+/review-mobile-pr --local [<base>]               # review the current branch vs <base> (default origin's default branch); no GitHub calls
 ```
 Flags combine freely — e.g. `--lite --apply-safe-fixes` runs the narrow pass set and still applies any suggestion-grade fix that survives it.
 
@@ -103,7 +112,11 @@ gh auth status   # must succeed — stop if not authenticated
 
 Parse the PR URL/number to extract `owner`, `repo`, `pr_number`.
 
-Create the run directory first — `mktemp -d` — and keep its literal absolute path (shell state doesn't persist between tool calls). Every file this review produces lives there. Then run these independent calls as separate tool calls in one batch:
+Create the run directory first — `mktemp -d` — and keep its literal absolute path (shell state doesn't persist between tool calls). Every file this review produces lives there.
+
+**Under `--local`, replace the rest of pre-flight up to "Annotate the diff" with local git** (no `gh` calls, no auth check, no pending-review check): repo root = `git rev-parse --show-toplevel`; base = the argument, else `git symbolic-ref --short refs/remotes/origin/HEAD`, else `main`; `git diff <base>...HEAD > <run dir>/raw.diff`; PR intent from `git log <base>..HEAD --format='%s%n%b'` and the branch name. Then continue at "Annotate the diff" — the checkout bullets don't apply, since the repo root is already the head.
+
+Otherwise run these independent calls as separate tool calls in one batch:
 
 ```bash
 gh pr view <number> --repo <owner>/<repo> \
@@ -119,7 +132,7 @@ gh api repos/<owner>/<repo>/pulls/<number>/reviews --paginate \
 
 The `--jq` projections matter: raw comment JSON carries user objects, links, reactions and `diff_hunk`, and on a busy PR runs to tens of thousands of tokens of nothing you use. Review bodies are fetched because bots often put their findings there.
 
-**Stop if any review has `state: "PENDING"`** (only your own pending review is visible to you). GitHub allows one pending review per user per PR, so step 8's POST would fail after the whole review had already been paid for — and that earlier draft's comments are invisible to the cross-check. Tell the user to submit or delete their pending review in the PR's GitHub UI, then re-run.
+**Stop if any review has `state: "PENDING"`** (only your own pending review is visible to you) — except under `--dry-run`, which posts nothing; just mention it in the summary. GitHub allows one pending review per user per PR, so step 8's POST would fail after the whole review had already been paid for — and that earlier draft's comments are invisible to the cross-check. Tell the user to submit or delete their pending review in the PR's GitHub UI, then re-run.
 
 Annotate the diff — this is what every pass reads, and what step 8 validates anchors against:
 
@@ -137,9 +150,9 @@ Each `+`/context line is prefixed `R<n>` (its new-file line, for `side: RIGHT`),
 
 Keep `headRefOid` (step 8 pins the review to it), the PR author's login (step 7) and the repo root. Keep the projected comments on hand — you'll cross-check your findings against them before posting (step 6).
 
-Show header (with the resolved posting mode; append ` · lite` when `--lite` was resolved):
+Show header (with the resolved posting mode — or `dry run` / `local vs <base>`; append ` · lite` when `--lite` was resolved; under `--local` the PR/branch lines become the branch name and `<base> ← HEAD`):
 ```
-🔍 Mobile PR Review (draft | live)[ · lite]
+🔍 Mobile PR Review (draft | live | dry run | local vs <base>)[ · lite]
 📋 PR #<number>: <title>
 🔀 <base> ← <head>
 📂 Files changed: <count>
@@ -212,7 +225,7 @@ Collect every dispatched pass's raw output — each already carries `<file>:<R|L
 
 ### 6. Cross-check against existing PR comments
 
-Before posting, compare every finding in the aggregated pool from step 5 against the comments fetched in pre-flight (both inline review comments and top-level PR comments) so you don't duplicate feedback that's already on the PR — from an earlier draft pass, another reviewer, or a bot.
+Skip this step under `--local` — there's no PR, so no existing comments. Otherwise, before posting, compare every finding in the aggregated pool from step 5 against the comments fetched in pre-flight (both inline review comments and top-level PR comments) so you don't duplicate feedback that's already on the PR — from an earlier draft pass, another reviewer, or a bot.
 
 For each finding, look for existing comments **on the same file and the same line or line range**, then judge on substance, not exact wording — a comment saying "this will NPE on empty list" and one saying "add a null check before iterating" about the same line are the same finding even though the wording differs:
 
@@ -279,6 +292,8 @@ gh api repos/<owner>/<repo>/pulls/<number>/reviews --method POST --input <run di
 
 **Validate every anchor before posting.** Write `<run dir>/anchors.tsv` (one `path<TAB>RIGHT|LEFT<TAB>line` row per comment, plus one per `start_line`) with the `Write` tool, then run `<skill dir>/scripts/prepare-diff.sh check <run dir>/pr.diff < <run dir>/anchors.tsv`. It prints each anchor that isn't in the diff. Fix each one per the anchoring rules above (move it to a changed line in the same hunk, or to the body's list) — never post an unvalidated anchor, because one bad line makes GitHub reject the whole review. If the POST still returns 422, the error names the offending comment: move it to the body's list and retry once.
 
+**Under `--local` or `--dry-run`, stop here instead of POSTing** (validate anchors first — under `--local` that still catches bad line numbers): write `<run dir>/findings.md` with the `Write` tool — the body, then each comment as `### <path>:<line> (<side>)` followed by its body — and print it in full. Under `--local` there's no `commit_id` or payload file to build.
+
 `commit_id` pins every comment to the commit the passes actually reviewed — without it GitHub uses the latest commit, which may have been pushed mid-review.
 
 **Draft mode: send the payload exactly as above, with no `event` field.** Omitting `event` is what tells the GitHub API to save the review as pending — invisible until manually submitted. Passing `"event": "PENDING"` returns a 422 error.
@@ -342,7 +357,7 @@ Tone: findings, not verdicts. State the problem and its consequence; don't lectu
 
 ### 9. Summary
 
-After posting, print (heading depends on the resolved posting mode; append ` · lite` when `--lite` was resolved). If step 8 skipped posting because nothing survived, print `✅ No findings — nothing posted` in place of the heading and omit the posting-mode lines:
+After posting, print (heading depends on the resolved posting mode; append ` · lite` when `--lite` was resolved). If step 8 skipped posting because nothing survived, print `✅ No findings — nothing posted` in place of the heading and omit the posting-mode lines. Under `--local` or `--dry-run`, use `🧪 Local review — nothing posted` / `🧪 Dry run — nothing posted` as the heading, omit the posting-mode and Review URL lines, and, if the host reports token usage for the dispatched agents, add `Pass tokens: <sum>`:
 
 ```
 ✅ Draft review saved (NOT submitted)          [Draft mode]

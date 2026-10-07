@@ -1,0 +1,3 @@
+Deduplicate currency formatting
+
+Pure refactor: formatTotal delegates to formatPrice; no behavior change.

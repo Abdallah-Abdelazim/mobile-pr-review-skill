@@ -1,0 +1,3 @@
+Load and show the signed-in user's profile
+
+ProfileView fetches the profile from the API on appear and shows the user's name. Deployment target is iOS 17.
