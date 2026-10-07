@@ -34,7 +34,7 @@ Applies to **every PR**, regardless of platform. Two parts: the code-smell scan 
 
 - **Functions doing several things** — mixed abstraction levels, "and" in the natural description of what it does; suggest extraction with names
 - **Deep nesting** (> ~3 levels) — invert conditions, early return/`guard`
-- **Magic numbers/strings** — named constants with intent (`MAX_RETRIES = 3`, not a bare `3`); exempt obvious zero/one/empty
+- **Magic numbers/strings** — named constants with intent (`MAX_RETRIES = 3`, not a bare `3`); exempt obvious zero/one/empty, unit conversions (`/ 100.0` for cents, `* 1000` for ms), and UI spacing/size/duration literals (`16.dp`, `300.milliseconds`) unless the project has a token system the diff bypasses
 - **Misleading names**: `getX()` that mutates, `isEnabled` that isn't a Bool, a `Manager`/`Helper`/`Util` grab-bag absorbing unrelated logic
 - **Boolean parameters that obscure call sites** — `render(true, false)` tells the reader nothing; enums or separate functions
 - **Long parameter lists** (> ~5) — group into a type

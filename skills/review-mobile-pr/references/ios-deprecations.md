@@ -1,5 +1,7 @@
 # iOS deprecations & platform changes (2026)
 
+Facts last updated: 2026-09-21. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
+
 Context: since **April 28, 2026**, every App Store upload must be built with the **iOS 26 SDK / Xcode 26** or later — no exceptions. Privacy Manifests (`PrivacyInfo.xcprivacy`) are mandatory, and "required reason" APIs need declared reasons. Swift 6 strict concurrency is the compiler default for new modules. iOS 26 unified Apple's OS versioning (iOS/iPadOS/macOS/watchOS/tvOS/visionOS all on the "26" cycle) — treat any codepath still branching on `#available` for the old numbering scheme (iOS 17/18) as still valid, but new `#available(iOS 26, *)` checks are the current baseline.
 
 | Newly added usage of… | Status | Replacement / note | Severity |

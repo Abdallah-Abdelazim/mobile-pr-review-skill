@@ -1,5 +1,7 @@
 # Android review reference (2026)
 
+Facts last updated: 2026-09-21. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
+
 Apply to Kotlin/Compose/Gradle files. Only review lines present in the diff (`+` lines). Never flag pre-existing code.
 
 Deprecation tables live in `android-deprecations.md` (read by the Deprecation Scanner pass).
@@ -36,8 +38,7 @@ Deprecation tables live in `android-deprecations.md` (read by the Deprecation Sc
 
 ## Jetpack Compose
 
-- **Recomposition stability**: lambdas passed to composables are stable (method references, `remember`ed, or created outside hot paths) to avoid recomposition on every call-site recomposition
-- Types passed to composables are primitive, `@Stable`, `@Immutable`, or data classes of stable types — stdlib `List`/`Map` should be `ImmutableList`/`ImmutableMap` (kotlinx.collections.immutable) or wrapped
+- **Recomposition stability — strong skipping is the default** (Compose compiler with Kotlin 2.0.20+): lambdas are remembered automatically and unstable parameters are compared by instance (`===`), so don't flag plain lambdas or stdlib `List`/`Map` parameters by themselves. Flag only when the project disables strong skipping (`enableStrongSkippingMode = false`, or a Kotlin/Compose compiler older than 2.0.20), or when the diff creates a **new unstable instance on every recomposition** and passes it down (`listOf(...)`/`map { }`/a new data object built in the composition body) — that defeats instance comparison and is the real modern stability bug
 - `remember { }` for objects expensive to create that should survive recomposition; `rememberSaveable { }` for values that must survive configuration changes
 - Side-effect APIs used correctly:
   - `LaunchedEffect(key)` for coroutine work tied to a lifecycle event or key change
@@ -46,11 +47,11 @@ Deprecation tables live in `android-deprecations.md` (read by the Deprecation Sc
   - No coroutine launches or side effects directly in a composable body outside these APIs
 - `items(key = ...)` / `key()` used in `LazyColumn`/`LazyRow` to preserve item state on list changes
 - Scaffold `paddingValues` from the content lambda actually applied — content otherwise renders under system bars
-- `Modifier` chains ordered correctly: layout modifiers (size, padding) before drawing modifiers (background, border)
+- `Modifier` order matches intent — order changes meaning, not style (`padding().background()` and `background().padding()` are both valid and render differently). Flag only an order that contradicts what the code is evidently trying to do, e.g. `padding()` before `clickable()` shrinking a touch target, or `clip()` after `background()` leaving the background unclipped
 - State hoisted: composables receive state + event lambdas; no `MutableState` mutated from outside its owning scope
 - `derivedStateOf { }` for computed values that depend on other state, to avoid unnecessary recompositions
 - `collectAsStateWithLifecycle()` for flow collection (see deprecation table)
-- New public composables have a `@Preview` (or the project's screenshot-test equivalent)
+- New public screen-level composables have a `@Preview` (or the project's screenshot-test equivalent) **when the project already does this** — grep for existing `@Preview`s in the module first; don't flag a missing preview in a codebase that doesn't use them
 - No expensive work (I/O, parsing, sorting large lists) in the composition body — precompute in the ViewModel or `remember`
 
 ## Coroutines & Flows
@@ -147,7 +148,7 @@ Deprecation tables live in `android-deprecations.md` (read by the Deprecation Sc
 ## Resources & localisation
 
 - No hardcoded user-visible strings — `strings.xml` with meaningful keys
-- No hardcoded dimensions — `dimens.xml`, design tokens, or design-system `Dp` values
+- No hardcoded dimensions **where the project has design-system tokens and the diff bypasses them** (grep for a `Dimens`/spacing object or `dimens.xml` first). A literal like `16.dp` in Compose is idiomatic on its own — don't flag it in a codebase with no token system
 - No hardcoded colors outside a theme/design-system file
 - Plurals via `plurals` resource, not `if (count == 1)` inline
 - RTL: `start`/`end` not `left`/`right` in XML; `Arrangement.Start`/`End` in Compose

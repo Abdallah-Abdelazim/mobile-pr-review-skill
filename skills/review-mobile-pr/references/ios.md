@@ -1,5 +1,7 @@
 # iOS review reference (2026)
 
+Facts last updated: 2026-09-21. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
+
 Apply to Swift/SwiftUI/UIKit/Xcode files. Only review lines present in the diff (`+` lines). Never flag pre-existing code.
 
 Deprecation tables live in `ios-deprecations.md` (read by the Deprecation Scanner pass).
@@ -55,7 +57,7 @@ The compiler catches many data races, but reviews still catch design errors the 
 - No `GeometryReader` wrapping whole screens when alignment/layout primitives suffice (layout thrash)
 - Animations attached to specific value changes (`.animation(_:value:)`), not ambient
 - Environment values over deep parameter drilling for cross-cutting concerns (theme, locale)
-- **Views conform to `Equatable`** (or wrap an expensive subtree in `EquatableView`) when `body` computation is nontrivial and its inputs rarely change — without it, SwiftUI re-diffs the subtree on every parent update regardless of whether anything relevant changed
+- **`Equatable` views / `EquatableView`** only for a measured or evidently hot subtree (a large list row, a view redrawn on every scroll/animation frame) whose `body` is expensive and whose inputs rarely change. With the Observation framework, views already invalidate only on the properties they read — don't flag a missing `Equatable` conformance as a default
 - **`@Bindable` scoped to the object whose properties are actually bound** to a child control — applying `@Bindable` to a passed-in model "just in case" opts the whole subtree into observation it doesn't need, and can widen invalidation beyond what actually changed
 
 ## UIKit

@@ -6,6 +6,8 @@ Read the platform checklist(s) `context.md` lists for this diff (`android.md` / 
 
 **Step 1 — Establish intent.** State in one line what the change is supposed to do and what its happy path is. You cannot judge "wrong" or "forgotten" without knowing "intended."
 
+Then compare the intent with the diff: anything the PR description or linked issue promises that the diff doesn't implement (a promised field that's never sent, a promised "no fee" that still charges) is a HIGH `bug` — the author believes it's done. Anchor it on the closest related changed line. Ignore work the description explicitly defers.
+
 **Step 2 — Triage by blast radius.** Rank the changed hunks; deep-analyze the high ones, skim the rest.
 - **High:** shared/common logic, public API signatures, control-flow changes (conditions, loops, `when`/`switch`), state/persistence/serialization, money/auth/PII, concurrency changes (actor isolation, dispatchers, `Task`/coroutine scopes), anything called from many places.
 - **Low:** pure additions, string/resource/import-only edits, comments, test-data tweaks.

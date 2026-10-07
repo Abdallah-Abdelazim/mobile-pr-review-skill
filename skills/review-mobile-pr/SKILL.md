@@ -120,7 +120,7 @@ Otherwise run these independent calls as separate tool calls in one batch:
 
 ```bash
 gh pr view <number> --repo <owner>/<repo> \
-  --json number,title,body,baseRefName,headRefName,headRefOid,author,state,files
+  --json number,title,body,baseRefName,headRefName,headRefOid,author,state,files,closingIssuesReferences
 gh pr diff <number> --repo <owner>/<repo> > <run dir>/raw.diff
 gh api repos/<owner>/<repo>/pulls/<number>/comments --paginate \
   --jq '.[] | {path, line, original_line, start_line, user: .user.login, body: (.body // "")[0:400]}'
@@ -147,6 +147,8 @@ Each `+`/context line is prefixed `R<n>` (its new-file line, for `side: RIGHT`),
 - **The current directory is a clone of `<owner>/<repo>` with `HEAD` at `headRefOid`:** repo root = the current directory.
 - **It's a clone at some other commit:** `git fetch <remote> pull/<number>/head` (the remote whose URL matches `<owner>/<repo>`), then `git worktree add --detach <run dir>/wt <headRefOid>`; repo root = `<run dir>/wt`. Never switch the user's own branch.
 - **No local clone:** repo root = none; passes look files up with `gh api repos/<owner>/<repo>/contents/<path>?ref=<headRefOid> --jq .content | base64 -d`.
+
+If `closingIssuesReferences` names linked issues, fetch the first two: `gh issue view <n> --repo <owner>/<repo> --json title,body --jq '.title + "\n" + (.body // "")[0:1500]'` — their acceptance criteria are the best statement of intent there is, and Bug Hunter checks the diff against it.
 
 Keep `headRefOid` (step 8 pins the review to it), the PR author's login (step 7) and the repo root. Keep the projected comments on hand — you'll cross-check your findings against them before posting (step 6).
 
@@ -179,7 +181,7 @@ Delegate the labor-intensive analysis to the review passes defined in "Review pa
 
 **Shared context goes in a file, never into the prompts.** A dispatched pass can't see your context, so anything you put in its prompt you must generate as output, once per pass — the diff alone, repeated across six prompts, would be the largest cost and the longest wait in the whole review. Instead, write `<run dir>/context.md` once with the `Write` tool, containing:
 
-- **PR intent** — one line stating what the change is supposed to do and its happy path, from the PR title/description/linked ticket. You cannot judge "wrong" or "forgotten" without knowing "intended," and every pass needs this framing.
+- **PR intent** — one line stating what the change is supposed to do and its happy path, from the PR title/description, plus the linked issues' requirements (from pre-flight) as a short bullet list. You cannot judge "wrong" or "forgotten" without knowing "intended," and every pass needs this framing.
 - **The annotated diff's absolute path** (`<run dir>/pr.diff`) with one line on its format: `R<n>` = new-file line, `L<n>` = old-file line, copy them into findings verbatim. Plus the changed-files list.
 - **The repo root** from pre-flight (or "none — look files up with `gh api …/contents/<path>?ref=<headRefOid>`"). Grep and read there, never anywhere else.
 - **Absolute paths to the reference files for the platforms step 2 detected** — checklists (`android.md` / `ios.md` / `kmp.md`), deprecation tables (`android-deprecations.md` / `ios-deprecations.md`), and `engineering-excellence.md` always (it applies regardless of platform). Each pass file says which of these it reads, and reads them itself — paths, never pasted excerpts.

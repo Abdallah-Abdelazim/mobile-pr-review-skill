@@ -1,5 +1,7 @@
 # KMP review reference
 
+Facts last updated: 2026-09-21. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
+
 Apply to any file under `kmp/` or in multiplatform source sets. Rules are stricter than single-platform code because mistakes in `commonMain` break all platforms simultaneously.
 
 ## Source set map

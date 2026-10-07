@@ -1,5 +1,7 @@
 # Android deprecations & platform changes (2026)
 
+Facts last updated: 2026-09-21. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
+
 Flag **newly added** usage of anything below. Context: Google Play requires new apps/updates to target **API 36 (Android 16)** from Aug 31, 2026 (existing apps: API 35 minimum). **Android 17 (API 37, "Cinnamon Bun") already shipped June 16, 2026** — devs can target it today even though Play's mandate for API 37 isn't expected until ~Aug 2027 (same annual cadence as 34→35→36). Treat the API 37 rows below as live, not speculative.
 
 ## Android 16 / API 36 behavior changes & deprecations
