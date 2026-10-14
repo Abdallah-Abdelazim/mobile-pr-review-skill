@@ -7,6 +7,7 @@ Fixtures with seeded bugs, used to measure whether a change to the skill helps o
 ```
 evals/
 ├── setup.sh                 # fixture → throwaway git repo (main = base, pr = head)
+├── run.sh                   # setup → review → grade for every fixture via `claude -p`
 ├── grader.md                # grader-agent prompt → JSON score
 ├── results.md               # one row per fixture per run
 └── fixtures/<name>/
@@ -36,8 +37,12 @@ For each fixture, in a Claude Code session with the skill installed (the repo's 
 3. Dispatch a fresh agent: *"Read `<this repo>/evals/grader.md` and follow it. expected.md: `<fixture>/expected.md`. findings.md: `<run dir>/findings.md`."*
 4. Add a row to `results.md`.
 
+`evals/run.sh [<fixture>...]` does steps 1–3 for each fixture in turn with `claude -p` and writes `<out>/summary.tsv`, one line per fixture with the `results.md` columns except the notes. It spends the same tokens as running the steps by hand. `EVAL_BUDGET_USD` caps each `claude` call (default 15), `EVAL_MODEL` sets and records the orchestrator model, and `EVAL_CLAUDE_ARGS` passes extra flags such as `--bare`, which skips your hooks and `CLAUDE.md`. Bash is allowed unscoped so the skill can run git/awk/grep, which is safe only because `--local` makes no GitHub calls; run it on a machine where that's acceptable.
+
 Run the whole set before and after a change that affects output (pass prompts, references, dedup, severity, comment format) and compare. Model runs vary, so treat a one-fixture difference as noise; look for consistent shifts.
 
 If a run shows a fixture's `expected.md` is wrong (e.g. it rejects a valid anchor), fixing it is fine — but note the change in `results.md` beside the run that exposed it, so before/after numbers stay comparable.
+
+Step 6 (cross-check against existing PR comments) has no fixture: `--local` has no PR, so it skips that step. Covering it would take a sandbox GitHub PR with seeded comments, run with `--dry-run`.
 
 When adding a fixture, keep it small (2–4 files), make every seeded bug unambiguous from the diff plus the files shown, and add at least one "must not flag" trap.

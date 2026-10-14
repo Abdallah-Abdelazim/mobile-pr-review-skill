@@ -1,6 +1,6 @@
 # Android review reference (2026)
 
-Facts last updated: 2026-09-21. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
+Facts last updated: 2026-10-14. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
 
 Apply to Kotlin/Compose/Gradle files. Scope: lines the diff adds or removes, or a context line it left stale — never pre-existing code it didn't touch (see `passes/shared.md`).
 
@@ -135,7 +135,7 @@ Deprecation tables live in `android-deprecations.md` (read by the Deprecation Sc
 ## Background work, permissions & notifications
 
 - **WorkManager**: a new `WorkRequest` declares the constraints it actually needs (network type, battery, storage) rather than none; retry/backoff policy (`BackoffPolicy`) set deliberately, not left at the default when the work has a real reason to back off differently; a uniquely-scheduled work chain uses `enqueueUniqueWork`/`enqueueUniquePeriodicWork` with the policy (`REPLACE`/`KEEP`/`APPEND`) that matches intent — `REPLACE` on a periodic work silently drops in-flight state if chosen without thought
-- **Foreground services**: a new `startForeground()` call declares a `foregroundServiceType` in the manifest matching the work (required since API 34, enforced with a `SecurityException` if missing/mismatched) — a new type added here should also appear in the runtime `startForeground()` call, not just the manifest
+- **Foreground services**: a new `startForeground()` call declares a `foregroundServiceType` in the manifest matching the work (required when targeting API 34+: a missing type throws `MissingForegroundServiceTypeException`, a type without its `FOREGROUND_SERVICE_<TYPE>` permission a `SecurityException`) — a new type added here should also appear in the runtime `startForeground()` call, not just the manifest
 - **Runtime permissions**: a new permission request shows rationale before asking when `shouldShowRequestPermissionRationale()` is true (not just fires the system dialog cold); a denial path exists and degrades the feature rather than crashing or silently no-op-ing; a permanently-denied ("don't ask again") case is distinguished from a first-time denial and routes to Settings rather than looping the request
 - **Notification channels**: a new notification posts through a channel created via `NotificationChannel` with an appropriate `importance` (not blanket `IMPORTANCE_HIGH`) — channel IDs are stable across app versions (changing one orphans the user's existing per-channel settings); new channels aren't created redundantly on every app launch (check for `getNotificationChannel()` first, or accept `createNotificationChannel()`'s built-in idempotency rather than adding a manual guard that can drift out of sync)
 
@@ -169,6 +169,6 @@ Deprecation tables live in `android-deprecations.md` (read by the Deprecation Sc
 - No duplicates already provided transitively
 - ProGuard/R8 keep rules added for any reflection-heavy or serialization library introduced in this PR
 - `isShrinkResources`/minification settings not weakened without justification
-- New modules follow the project's convention plugins; AGP 9-era source-set config uses `kotlin.srcDir()` for Kotlin sources
+- New modules follow the project's convention plugins; under AGP 9's built-in Kotlin, extra Kotlin source dirs go in `android.sourceSets { named("main") { kotlin.directories += "…" } }` — `kotlin.sourceSets { … kotlin.srcDir() }` and adding them to `java` are unsupported
 - AGP 9 has built-in Kotlin: a module no longer applies `org.jetbrains.kotlin.android`/`kotlin-android` (the build fails if it does), and `android { kotlinOptions { } }` moves to `kotlin { compilerOptions { } }` with typed values (`kotlinOptions` is an error since Kotlin 2.2)
 - No `-SNAPSHOT` or dynamic (`+`) versions introduced

@@ -13,7 +13,7 @@ Flag **newly added** usage of anything below. Context: Google Play requires new 
 | `AccessibilityNodeInfo.setLabeledBy` / `getLabeledBy` | Deprecated in API 36 | `addLabeledBy` / `removeLabeledBy` / `getLabeledByList` | 🟡 |
 | `elegantTextHeight` attribute | Deprecated; **ignored when targeting API 36** | Remove; verify layouts for Arabic/Thai/Tamil etc. tall scripts | 🟡 |
 | Opting out of edge-to-edge (`windowOptOutEdgeToEdge`, legacy status-bar color APIs) | Edge-to-edge is enforced for apps targeting API 36; opt-out removed | `enableEdgeToEdge()` + `windowInsetsPadding` / `WindowInsets` APIs | 🟠 |
-| `PendingIntent` without `FLAG_IMMUTABLE`/`FLAG_MUTABLE` | Crash on API 31+ | Add `PendingIntent.FLAG_IMMUTABLE` unless mutability is required | 🔴 |
+| `PendingIntent.getActivity`/`getBroadcast`/`getService` without `FLAG_IMMUTABLE`/`FLAG_MUTABLE` | Crash on API 31+ | Add `PendingIntent.FLAG_IMMUTABLE` unless mutability is required | 🔴 |
 | Writable-then-executed dynamically loaded code (DEX/JAR, and **native `.so` libraries as of API 37**) | API 36 requires DEX/JAR marked read-only before execution; API 37 extends the same Safer Dynamic Code Loading protection to native libraries | `setReadOnly()` before loading; avoid writing-then-`dlopen`ing native code at runtime | 🔴 |
 | `AsyncTask`, `Loader`s, `IntentService`, `Handler()` no-arg ctor | Long deprecated | Coroutines/`WorkManager`, `Handler(Looper.getMainLooper())` | 🟡 |
 | `startActivityForResult` / `onActivityResult`, `requestPermissions` overrides | Deprecated | Activity Result APIs (`registerForActivityResult`) | 🟡 |
@@ -37,8 +37,8 @@ Flag **newly added** usage of anything below. Context: Google Play requires new 
 | Newly added usage of… | Status | Replacement / note | Severity |
 |---|---|---|---|
 | `ActivityOptions.setPendingIntentBackgroundActivityStartMode(MODE_BACKGROUND_ACTIVITY_START_ALLOWED)` (legacy blanket BAL opt-in) | Superseded at API 37 | Granular constants: `MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE` etc. — pick the narrowest that fits | 🟡 |
-| Background audio playback, focus requests, or volume changes from a non-visible component | Strictly enforced at API 37 target — requires a foreground service | Use `MediaSessionService` + a proper foreground service declaration for background audio | 🟠 |
-| Reflection-based mutation of `static final` fields (`Field.setAccessible` + `set`) | No longer permitted targeting API 37 | Refactor to a mutable holder/property if the value must change; don't rely on reflection to patch constants | 🟠 |
+| Background audio playback, focus requests, or volume changes (`MediaPlayer`, `requestAudioFocus`, `setStreamVolume`) from a non-visible component | Strictly enforced at API 37 target — requires a foreground service | Use `MediaSessionService` + a proper foreground service declaration for background audio | 🟠 |
+| Reflection-based mutation of `static final` fields (`Field.setAccessible(true)` + `set`) | No longer permitted targeting API 37 | Refactor to a mutable holder/property if the value must change; don't rely on reflection to patch constants | 🟠 |
 | Discovering devices on the local network (mDNS/NSD, direct socket/broadcast scans, printers, Chromecast, IoT) | Requires the `ACCESS_LOCAL_NETWORK` permission at API 37 | Declare `android.permission.ACCESS_LOCAL_NETWORK` and request it at runtime before LAN discovery | 🟠 |
 | Reading `ACCOUNT_NAME` / `ACCOUNT_TYPE` / `ACCOUNT_TYPE_AND_DATA_SET` from the Contacts Provider data view | Removed at API 37 target | Query the `RawContacts` table for account info instead | 🟡 |
 
@@ -54,10 +54,10 @@ Flag **newly added** usage of anything below. Context: Google Play requires new 
 |---|---|---|---|
 | `collectAsState()` on Android UI flows | Superseded | `collectAsStateWithLifecycle()` (lifecycle-aware; stops collection in background) | 🟡 |
 | Material 2 (`androidx.compose.material.*`) components in new UI | Superseded | Material 3 (`androidx.compose.material3.*`) equivalents | 🟡 |
-| Accompanist libraries that were upstreamed (SystemUiController, Pager, FlowLayout, Navigation-Material, Permissions where applicable, Placeholder…) | Deprecated/archived | Core Compose equivalents: `enableEdgeToEdge()`+insets, `androidx.compose.foundation.pager`, `FlowRow`/`FlowColumn`, `material-navigation`, etc. | 🟡 |
-| String-route Navigation-Compose in new graphs | Superseded | Type-safe navigation (serializable route objects) or the project's typed-nav wrapper | 🟡 |
+| Accompanist libraries (`com.google.accompanist`) that were upstreamed (SystemUiController, Pager, FlowLayout, Navigation-Material, Permissions where applicable, Placeholder…) | Deprecated/archived | Core Compose equivalents: `enableEdgeToEdge()`+insets, `androidx.compose.foundation.pager`, `FlowRow`/`FlowColumn`, `material-navigation`, etc. | 🟡 |
+| String-route Navigation-Compose in new graphs (`composable("route")`, `navigate("route")`) | Superseded | Type-safe navigation (serializable route objects) or the project's typed-nav wrapper | 🟡 |
 | `LocalLifecycleOwner` from `androidx.compose.ui.platform` | Moved | Import from `androidx.lifecycle.compose` | 🟢 |
 | `rememberRipple()` | Deprecated | `ripple()` indication API | 🟢 |
-| `Divider` (material3) | Deprecated | `HorizontalDivider` / `VerticalDivider` | 🟢 |
+| `Divider()` (material3) | Deprecated | `HorizontalDivider` / `VerticalDivider` | 🟢 |
 
 If the diff uses an API you don't recognize or you're unsure whether it's been deprecated since this file was written, search the web before commenting.

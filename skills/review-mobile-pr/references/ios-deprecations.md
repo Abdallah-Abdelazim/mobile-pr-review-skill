@@ -12,15 +12,15 @@ Context: since **April 28, 2026**, every App Store upload must be built with the
 | `PreviewProvider` boilerplate in new previews | Superseded | `#Preview` macro | 🟢 |
 | Old alert/sheet APIs (`Alert(title:…)`, `.alert(isPresented:content:)` returning `Alert`) | Deprecated | `.alert(_:isPresented:actions:message:)` builder APIs | 🟢 |
 | `foregroundColor(_:)` | Deprecated | `foregroundStyle(_:)` | 🟢 |
-| `.animation(_:)` (no value) | Deprecated (ambient animation) | `.animation(_:value:)` or `withAnimation { }` | 🟡 |
+| `.animation(_:)` with no value (e.g. `.animation(.default)`) | Deprecated (ambient animation) | `.animation(_:value:)` or `withAnimation { }` | 🟡 |
 | `onChange(of:) { newValue in }` single-param | Deprecated iOS 17 | Two-parameter `onChange(of:) { old, new in }` or zero-param | 🟢 |
 | `DispatchQueue`/GCD in new async code paths | Superseded | Swift Concurrency: `Task`, `async/await`, actors, `AsyncSequence`; `@MainActor` instead of `DispatchQueue.main.async` for UI hops | 🟡 |
-| New Combine pipelines for one-shot async work | Not deprecated, but Apple investment is in Swift Concurrency | Prefer `async/await` / `AsyncSequence` for new code; Combine fine where the codebase is already Combine-based | 🟢 |
-| Completion-handler APIs where an async overload exists (`URLSession.dataTask` vs `data(for:)`) | Superseded | Async overloads | 🟡 |
-| Core Data for brand-new persistence in a greenfield module (iOS 17+) | Superseded for new work | SwiftData (`@Model`) — but do **not** flag additions to an existing Core Data stack | 🟢 |
+| New Combine pipelines (`AnyPublisher`, `PassthroughSubject`, `.sink {`) for one-shot async work | Not deprecated, but Apple investment is in Swift Concurrency | Prefer `async/await` / `AsyncSequence` for new code; Combine fine where the codebase is already Combine-based | 🟢 |
+| Completion-handler APIs where an async overload exists (`URLSession.dataTask(with:)` vs `data(for:)`) | Superseded | Async overloads | 🟡 |
+| Core Data (`NSManagedObject`, `NSPersistentContainer`) for brand-new persistence in a greenfield module (iOS 17+) | Superseded for new work | SwiftData (`@Model`) — but do **not** flag additions to an existing Core Data stack | 🟢 |
 | `NSCoding`/`NSKeyedArchiver` without secure coding | Insecure/deprecated pattern | `Codable`, or `NSSecureCoding` with `requiresSecureCoding = true` | 🟠 |
-| XCTest for brand-new unit-test targets | Superseded for new pure-Swift tests | Swift Testing (`@Test`, `#expect`, `#require`) — don't flag additions to existing XCTest suites; UI tests remain XCTest | 🟢 |
-| Storyboard/XIB additions for new screens in a SwiftUI-first codebase | Legacy direction | SwiftUI (or the project's established UIKit pattern) | 🟢 |
+| XCTest in a brand-new unit-test target (a new `.testTarget(` in `Package.swift`, or a new `com.apple.product-type.bundle.unit-test` target in the `.pbxproj`) | Superseded for new pure-Swift tests | Swift Testing (`@Test`, `#expect`, `#require`) — don't flag additions to existing XCTest suites; UI tests remain XCTest | 🟢 |
+| Storyboard/XIB additions (`UIStoryboard`, `instantiateViewController`) for new screens in a SwiftUI-first codebase | Legacy direction | SwiftUI (or the project's established UIKit pattern) | 🟢 |
 | Required-reason APIs (`UserDefaults`, file timestamps, disk space, boot time…) added without a `PrivacyInfo.xcprivacy` entry | Store rejection risk | Declare the reason in the privacy manifest | 🟠 |
 | `@preconcurrency import` added to silence warnings | Escape hatch | Acceptable at true legacy boundaries; flag when used to dodge fixing the module's own isolation | 🟡 |
 | `NavigationLink(destination:isActive:)` / other Boolean-driven navigation in new code | Superseded | Value-driven `NavigationStack(path:)` / `NavigationLink(value:)` | 🟢 |

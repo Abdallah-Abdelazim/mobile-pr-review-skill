@@ -1,6 +1,6 @@
 # KMP review reference
 
-Facts last updated: 2026-09-21. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
+Facts last updated: 2026-10-14. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
 
 Apply to any file in a multiplatform source set (`**/src/<sourceSet>/**`) or a Swift-interop module. Rules are stricter than single-platform code because mistakes in `commonMain` break all platforms simultaneously.
 
@@ -61,13 +61,13 @@ Apply the Android checklist (`android.md`) additionally to `androidMain`, and th
 
 ## Compose Multiplatform (CMP) — shared UI
 
-Applies to shared Composables in `commonMain` that render on both Android and iOS (Compose Multiplatform 1.10+: unified `@Preview` across platforms, Navigation 3 supported on non-Android targets, Compose Hot Reload stable).
+Applies to shared Composables in `commonMain` that render on both Android and iOS (Compose Multiplatform 1.10+: unified `@Preview` across platforms, Navigation 3 on non-Android targets in alpha as of 1.10, Compose Hot Reload stable).
 
 - Composables in `commonMain` follow the same source-set hygiene as non-UI code — no `android.*`, `UIKit`, or `Foundation` types, no Android-only Material components leaking into a shared Composable
 - `@Composable expect fun ... / actual` used only for genuine platform-UI gaps (a native picker, a platform-specific gesture) — not as a workaround for a Compose API that already exists cross-platform; check whether the same effect is achievable with a plain shared Composable first
 - Shared strings/images/fonts go through Compose Multiplatform resources (`commonMain/composeResources/`, the generated `Res` object) — `stringResource(Res.string.x)` / `painterResource(Res.drawable.x)`, not a hardcoded per-platform string or a raw resource path. A new user-facing string gets a `values/strings.xml` entry; a translation gets its own `values-<lang>/`
 - Resources load synchronously on the caller's thread by default (raw/web resources are the exception) — a large image or font loaded straight from `painterResource` on a hot path can still janky-block composition; decode/cache off that path if it's large
-- Navigation goes through `navigation-compose` (or Navigation 3, now cross-platform) driving one shared nav graph — not a hand-rolled per-platform router unless there's a genuine platform-only requirement
+- Navigation goes through `navigation-compose` (or Navigation 3, cross-platform but alpha off Android as of CMP 1.10) driving one shared nav graph — not a hand-rolled per-platform router unless there's a genuine platform-only requirement
 - ViewModel scoping uses the KMP `lifecycle-viewmodel-compose` (or `lifecycle-viewmodel-navigation3` under Nav3) artifact in `commonMain` — never `androidx.lifecycle.ViewModel` imported directly into common code, and never a plain class reconstructed on every recomposition in its place
 - `ComposeUIViewController { }` configuration on the iOS side is set deliberately per screen — safe-area/insets aren't inherited automatically the way SwiftUI inherits them, and options like `enableBackGesture` default to a value that may not match the screen's actual navigation model
 - Back-gesture/back-stack interop between the shared Compose nav graph and a surrounding UIKit `UINavigationController` reviewed explicitly when both exist — two independent back stacks listening for the same swipe gesture is a real bug, not a theoretical one

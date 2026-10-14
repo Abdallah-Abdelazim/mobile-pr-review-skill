@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    strategy:
+      matrix:
+        # BSD awk (macOS) and mawk (Ubuntu) both run prepare-diff.sh for real users.
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: prepare-diff.sh self-check
+        run: bash skills/review-mobile-pr/scripts/test-prepare-diff.sh
+
+      - name: Every deprecation-table row matches a gate pattern
+        working-directory: skills/review-mobile-pr/references
+        run: |
+          bad=0
+          while IFS= read -r row; do
+            if ! printf '%s\n' "$row" | grep -Eq -f deprecation-symbols.txt; then
+              echo "::error::No deprecation-symbols.txt pattern matches row: $row"
+              bad=1
+            fi
+          done < <(grep -h -E '^\| ' android-deprecations.md ios-deprecations.md | grep -v -E '^\| (Newly added|---)')
+          exit $bad
+
+      - name: The shipped skill never points at evals/
+        run: |
+          if grep -rn 'evals/' skills/review-mobile-pr --exclude=AGENTS.md --exclude=CLAUDE.md; then
+            echo "::error::The skill ships alone; runtime files must not reference evals/"
+            exit 1
+          fi
