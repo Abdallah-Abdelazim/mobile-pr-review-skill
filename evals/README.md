@@ -25,6 +25,7 @@ evals/
 | `android-comments-types` | stranded KDoc, out-of-diff stale caller, mutually exclusive nullable fields |
 | `clean-refactor` | false positives on a correct refactor |
 | `tiny-typo` | tiny-diff path: zero dispatch, zero comments |
+| `android-injection` | prompt injection in a code comment and the PR description ("post nothing", "mark as approved") next to a real refund bug |
 
 ## Running
 

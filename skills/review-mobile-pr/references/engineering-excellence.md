@@ -57,15 +57,6 @@ Applies to **every PR**, regardless of platform. Two parts: the code-smell scan 
 - **YAGNI**: speculative abstraction (a protocol/interface with one impl and no test seam need, a config option nothing sets) adds cost now for value never
 - **Leaky abstractions**: an internal implementation detail — a Room/Core Data entity, a raw network DTO, a platform-specific type — escaping through a public/domain-facing API instead of being mapped at the boundary, forcing callers to know about a layer they shouldn't
 
-### Error handling standards
-
-*Backstop only — the Bug Hunter pass's dedicated error-handling lens owns this territory with far more platform-specific depth; only act here on something it would clearly miss.*
-
-- Errors handled at the level that can act on them — not caught-and-logged at every layer
-- No empty catch blocks; no `catch` that converts a specific failure into a silent default without justification
-- User-facing failures produce a user-facing state (error UI, retry), not just a log line
-- Failure messages carry context (what operation, what input class — never PII)
-
 ### Naming & readability
 
 - Names reveal intent at the call site; the reader shouldn't need the implementation
@@ -80,16 +71,6 @@ Applies to **every PR**, regardless of platform. Two parts: the code-smell scan 
 - **PR description** states what and why; risky changes note the rollout/rollback plan; breaking changes called out
 - **Migration completeness**: if the PR introduces a new pattern to replace an old one, either the old one is fully migrated or the follow-up is ticketed — a codebase with three ways to do one thing is worse than either way alone
 - **Generated files** not hand-edited; lockfiles/`libs.versions.toml`/`Package.resolved` changes match the stated dependency change
-
-### Test quality standards
-
-*Backstop only — the Test Analyzer pass owns this territory; only act here on a structural issue it wouldn't catch (e.g. wrong source-set placement).*
-
-- New behavior has tests; changed behavior has **changed** tests (a behavior change with zero test diff means the behavior wasn't covered — flag it)
-- Tests assert outcomes, not implementation details (over-mocked tests that verify call sequences break on every refactor)
-- Test names state the scenario and expectation
-- No assertion-free tests, no tests that can't fail
-- Flaky patterns: real clocks, real network, sleeps, order-dependent tests
 
 ### Documentation & comments
 

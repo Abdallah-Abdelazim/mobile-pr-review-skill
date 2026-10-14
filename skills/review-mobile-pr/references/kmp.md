@@ -2,19 +2,19 @@
 
 Facts last updated: 2026-09-21. Treat version/date facts more than ~6 months old as suspect — web-search before relying on them.
 
-Apply to any file under `kmp/` or in multiplatform source sets. Rules are stricter than single-platform code because mistakes in `commonMain` break all platforms simultaneously.
+Apply to any file in a multiplatform source set (`**/src/<sourceSet>/**`) or a Swift-interop module. Rules are stricter than single-platform code because mistakes in `commonMain` break all platforms simultaneously.
 
 ## Source set map
 
 | Path pattern | Meaning |
 |---|---|
-| `kmp/…/commonMain/…` | Common code — strictest rules |
-| `kmp/…/androidMain/…` | Android actuals |
-| `kmp/…/iosMain/…` | iOS/Native actuals |
-| `kmp/…/commonTest/…` | Common tests |
-| `kmp/…/engine-ios-bindings/…` | Swift interop layer |
+| `**/src/commonMain/…` | Common code — strictest rules |
+| `**/src/androidMain/…`, `**/src/jvmMain/…` | Android / JVM actuals |
+| `**/src/iosMain/…`, `**/src/appleMain/…`, `**/src/nativeMain/…` | iOS / Apple / Native actuals |
+| `**/src/commonTest/…`, `**/src/<target>Test/…` | Common / platform tests |
+| A Swift module or Xcode target wrapping the shared framework | Swift interop layer |
 
-Apply the Android checklist (`android.md`) additionally to `androidMain`, and the iOS checklist (`ios.md`) additionally to `iosMain`/bindings where relevant.
+Apply the Android checklist (`android.md`) additionally to `androidMain`, and the iOS checklist (`ios.md`) additionally to `iosMain`/`appleMain` and the Swift interop layer where relevant.
 
 ## Source set hygiene
 
@@ -49,7 +49,7 @@ Apply the Android checklist (`android.md`) additionally to `androidMain`, and th
 
 ## Date / time
 
-- `kotlinx-datetime` (`Instant`, `LocalDate`, `Clock.System`) in common code — not `java.time`, `java.util.Date`, `NSDate`, or `Calendar`
+- `kotlin.time.Instant` / `kotlin.time.Clock.System` (stdlib) for timestamps, and `kotlinx-datetime` (`LocalDate`, `LocalDateTime`, `TimeZone`) for calendar values, in common code — not `java.time`, `java.util.Date`, `NSDate`, or `Calendar`. Since kotlinx-datetime 0.7.0 its own `Instant`/`Clock` are gone (0.7.1 keeps only typealiases to `kotlin.time`), so new code imports `kotlin.time.Instant`
 - Time zones via `TimeZone.of(id)` — no hardcoded offsets
 
 ## Networking (Ktor)
@@ -78,7 +78,7 @@ Applies to shared Composables in `commonMain` that render on both Android and iO
 - DI modules (Koin or the project's chosen framework) defined in `commonMain`; only the platform-actual bindings (a platform HTTP engine, a platform storage implementation) live in `androidMain`/`iosMain` — not a parallel service locator duplicated per platform
 - Constructor injection into shared business logic, not `getKoin()`/service-locator calls scattered through `commonMain` — the latter makes shared code harder to unit test without a DI container running
 
-## iOS / Swift interop (engine-ios-bindings and iosMain)
+## iOS / Swift interop (iosMain and the Swift interop layer)
 
 - Public Kotlin declarations for Swift consumption annotated with `@ObjCName("SwiftFriendlyName")` where the default name would be awkward in Swift
 - Kotlin exceptions crossing the Swift boundary are caught and converted to result types, or declared with `@Throws(...)` — uncaught Kotlin exceptions terminate the iOS app. `IOException` isn't in Kotlin's common stdlib: in `commonMain`, `@Throws` must name a common type such as `kotlinx.io.IOException` (kotlinx-io-core) or the one the project's networking layer already uses — never `java.io.IOException`. A suggested fix includes the imports it needs (`import kotlinx.io.IOException`, `import kotlin.coroutines.cancellation.CancellationException`) and, if kotlinx-io isn't already a dependency, says to add `kotlinx-io-core` to `commonMain.dependencies`
@@ -88,6 +88,7 @@ Applies to shared Composables in `commonMain` that render on both Android and iO
 
 ## KMP build / Gradle hygiene
 
+- AGP 9: a KMP library module applies `org.jetbrains.kotlin.multiplatform` with `com.android.kotlin.multiplatform.library` — combining the multiplatform plugin with `com.android.library`/`com.android.application` is no longer allowed with built-in Kotlin
 - New KMP dependencies scoped to the right source set (`commonMain.dependencies { }`, `androidMain…`) — not plain `implementation` which targets only one platform
 - `iosSimulatorArm64` included alongside `iosArm64` (and `iosX64` if still supported) — omitting it breaks M-series simulators
 - XCFramework / `podspec` / SPM binary target updated if the public API surface changed and iOS consumers need to re-integrate

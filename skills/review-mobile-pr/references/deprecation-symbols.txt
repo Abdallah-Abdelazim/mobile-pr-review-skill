@@ -29,3 +29,7 @@ NSManagedObject|NSPersistentContainer|NSCoding|NSKeyedArchiver|NSKeyedUnarchiver
 XCTestCase|UIStoryboard|instantiateViewController
 UserDefaults|creationDate|modificationDate|systemUptime|volumeAvailableCapacity|NSPrivacyAccessed
 @preconcurrency
+applicationDidBecomeActive|applicationWillResignActive|applicationDidEnterBackground|applicationWillEnterForeground|UIApplicationDelegate
+UIScreen\.main|UIApplication\.shared\.(keyWindow|windows)
+externalNativeBuild|jniLibs|ndkVersion
+kotlinOptions|org\.jetbrains\.kotlin\.android|kotlin-android|kotlin\("android"\)

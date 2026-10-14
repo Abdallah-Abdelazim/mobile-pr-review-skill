@@ -14,7 +14,6 @@ Flag **newly added** usage of anything below. Context: Google Play requires new 
 | `elegantTextHeight` attribute | Deprecated; **ignored when targeting API 36** | Remove; verify layouts for Arabic/Thai/Tamil etc. tall scripts | 🟡 |
 | Opting out of edge-to-edge (`windowOptOutEdgeToEdge`, legacy status-bar color APIs) | Edge-to-edge is enforced for apps targeting API 36; opt-out removed | `enableEdgeToEdge()` + `windowInsetsPadding` / `WindowInsets` APIs | 🟠 |
 | `PendingIntent` without `FLAG_IMMUTABLE`/`FLAG_MUTABLE` | Crash on API 31+ | Add `PendingIntent.FLAG_IMMUTABLE` unless mutability is required | 🔴 |
-| Broad implicit intents relying on lenient resolution | API 36 tightens implicit-intent resolution | Prefer explicit intents; validate receiving component | 🟠 |
 | Writable-then-executed dynamically loaded code (DEX/JAR, and **native `.so` libraries as of API 37**) | API 36 requires DEX/JAR marked read-only before execution; API 37 extends the same Safer Dynamic Code Loading protection to native libraries | `setReadOnly()` before loading; avoid writing-then-`dlopen`ing native code at runtime | 🔴 |
 | `AsyncTask`, `Loader`s, `IntentService`, `Handler()` no-arg ctor | Long deprecated | Coroutines/`WorkManager`, `Handler(Looper.getMainLooper())` | 🟡 |
 | `startActivityForResult` / `onActivityResult`, `requestPermissions` overrides | Deprecated | Activity Result APIs (`registerForActivityResult`) | 🟡 |
@@ -22,7 +21,16 @@ Flag **newly added** usage of anything below. Context: Google Play requires new 
 | `kapt` for new annotation processors | Maintenance mode | KSP | 🟡 |
 | `LiveData` in new code | Superseded | `StateFlow`/`SharedFlow` (+ `asLiveData()` only at legacy boundaries) | 🟡 |
 | `android.preference.*`, `PreferenceManager` | Deprecated | AndroidX Preference / DataStore | 🟡 |
-| Back handling via `onBackPressed()` override | Deprecated | `OnBackPressedDispatcher` / predictive back (`android:enableOnBackInvokedCallback`) — Android 16 extends predictive back to 3-button nav | 🟠 |
+| Back handling via `onBackPressed()` override | Deprecated; **not called at all** for apps targeting API 36 on Android 16+ (predictive back is on by default — the legacy callback is skipped and `KEYCODE_BACK` isn't dispatched) unless the app opts out with `android:enableOnBackInvokedCallback="false"` | `OnBackPressedDispatcher` / `OnBackPressedCallback` (or `OnBackInvokedCallback`) — Android 16 extends predictive back to 3-button nav | 🟠 |
+
+**Also verify (no single symbol to grep):** API 36 tightens implicit-intent resolution — a new implicit intent relying on lenient resolution may no longer reach its target; prefer explicit intents and validate the receiving component.
+
+## Google Play & build-tooling requirements
+
+| Newly added usage of… | Status | Replacement / note | Severity |
+|---|---|---|---|
+| New or updated native code (`externalNativeBuild`, `jniLibs`, `ndkVersion`, a prebuilt SDK shipping `.so` files) | Google Play requires 16 KB memory-page-size support on 64-bit devices for apps targeting Android 15 (API 35)+; from Feb 1, 2027, updates that don't support it can't be released | Build native libraries 16 KB-aligned and update prebuilt native SDKs; check with APK Analyzer / Lint (developer.android.com/16kb-page-size). Kotlin/Java-only apps are unaffected | 🟠 |
+| `android { kotlinOptions { } }`, or applying `org.jetbrains.kotlin.android` / `kotlin-android` | `kotlinOptions` is deprecated with error since Kotlin 2.2; AGP 9 has built-in Kotlin and fails the build when the Kotlin Android plugin is applied (temporary opt-out `android.builtInKotlin=false`, removed before AGP 10) | `kotlin { compilerOptions { } }` with typed values (`JvmTarget`, `KotlinVersion`); remove the plugin | 🟠 |
 
 ## Android 17 / API 37 behavior changes (new — verify any diff that bumps `targetSdk` to 37, or already targets it)
 

@@ -24,7 +24,7 @@ No separate agent files and no external dependency beyond the GitHub CLI and `gi
 
 ## How a review runs
 
-1. **Pre-flight** — fetches the PR, its linked issues and existing comments; checks out the PR head in a temporary worktree (your own branch is never switched); writes the diff to a file with every line pre-numbered, so comment line numbers are copied, not guessed.
+1. **Pre-flight** — fetches the PR, its linked issues and existing comments (stopping if the PR is merged or closed); checks out the PR head in a temporary worktree, or in a temporary blobless clone when you have no local clone (your own branch is never switched); writes the diff to a file with every line pre-numbered, so comment line numbers are copied, not guessed.
 2. **Dispatch** — runs only the passes that have something to check, in parallel. Each pass reads the diff and its own prompt from files; nothing large is pasted into prompts.
 3. **Aggregate** — merges the same problem reported by several passes into one finding, re-verifies every Critical/High (and every uncertain) finding against the code, drops what doesn't hold up, and keeps at most 5 optional findings inline (the rest go in the review summary).
 4. **Post** — validates every comment's line against the diff, then posts one review: inline comments plus a short summary body, pinned to the reviewed commit.
@@ -51,7 +51,7 @@ The review's summary body counts findings by label, names the top risk, and list
 
 ## Optional: deeper platform coverage
 
-The bundled reference files above are the floor — nothing extra is required. If you also have a platform-specific skill installed, this skill layers it in as **extra depth on top of the bundled checklist, never a replacement**:
+The bundled reference files above are the floor — nothing extra is required. If you also have a platform-specific skill installed, this skill layers it in as **extra depth on top of the bundled checklist, never a replacement** (at most two per platform, picked by relevance to the diff):
 
 | Platform | Example skills |
 |---|---|
@@ -77,13 +77,13 @@ This drops the skill into `.claude/skills/review-mobile-pr/` in the current proj
 ```
 /review-mobile-pr https://github.com/<org>/<repo>/pull/<number>
 /review-mobile-pr <number>                     # when already inside the repo; saves a pending (draft) review
-/review-mobile-pr <number> --live              # post live immediately instead
+/review-mobile-pr <number> --live              # post live immediately instead (--now is the same)
 /review-mobile-pr <number> --draft             # explicit draft (the default anyway)
 /review-mobile-pr <number> --lite              # cheaper — only Bug Hunter + Code-Quality Reviewer, skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes  # also apply narrow, safe fixes directly instead of just commenting on them
 /review-mobile-pr <number> --dry-run           # full review, print the would-be review, post nothing
 /review-mobile-pr <number> --since-last        # re-review only the commits pushed since your last review
-/review-mobile-pr --local [<base>]             # self-review the current branch vs <base> before opening a PR; no GitHub calls
+/review-mobile-pr --local [<base>]             # self-review the current branch vs <base> before opening a PR; no GitHub calls; commits only — uncommitted changes are ignored
 ```
 Flags combine — `--lite --apply-safe-fixes` works together.
 
@@ -91,20 +91,20 @@ Requires the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against 
 
 ## Safety contract
 
-- **Draft by default.** Unless you explicitly asked for Live (`--live`, or saying so in your request), every comment is saved as part of a **pending** GitHub review, visible only to you until you open the PR and submit it yourself.
+- **Draft by default.** Unless you explicitly asked for Live (`--live`/`--now`, or saying so in your request), every comment is saved as part of a **pending** GitHub review, visible only to you until you open the PR and submit it yourself.
 - **Live posts everything at once**, the moment the review finishes — still just comments, never an approval or a change request; this skill reports findings, it doesn't gate the PR.
 - The skill never uses `gh pr review --comment`, `gh pr comment`, or any GitHub write API call that bypasses the single review it builds. That review carries a short summary body (finding counts, top risk, findings not tied to a diff line) written after all findings are final, pinned to the exact commit that was reviewed.
 - If you already have a pending review on the PR, the skill stops before reviewing (GitHub allows one per user) and asks you to submit or delete it first. With zero findings, nothing is posted.
-- **Fix mode on someone else's PR still posts the comment** for each fix it applies locally, so the author sees it. The applied fixes are left uncommitted and unpushed.
+- **Fix mode on someone else's PR still posts the comment** for each fix it applies locally, so the author sees it, and skips build/lint validation, which would run that PR's build scripts on your machine. The applied fixes are left uncommitted and unpushed, and the summary shows their full diff.
 - If the API call fails, it prints the findings to your terminal instead of falling back to any other posting mechanism, in either mode.
-- **The skill never edits your repo's files, unless you explicitly pass `--apply-safe-fixes`.** Even then, it only ever auto-applies a narrow class of unambiguous, single-line-grade fixes — anything else still becomes a review comment for you to act on yourself.
-- **Reviews the PR's actual code.** Lookups (call sites, tests, definitions) run against the PR head — in your checkout when it's already there, otherwise in a temporary worktree that's removed afterwards.
-- **PR content is treated as untrusted.** Every pass is told never to follow instructions found in the diff, description or comments, and the review payload is never built in a shell, so text from the PR can't run as a command.
+- **The skill never edits your repo's files, unless you explicitly pass `--apply-safe-fixes`.** Even then, it only ever auto-applies a narrow class of unambiguous, single-line-grade fixes — never one that adds a URL or a dependency or touches a build, manifest or config file — and anything else still becomes a review comment for you to act on yourself.
+- **Reviews the PR's actual code.** Lookups (call sites, tests, definitions) run against the PR head — in your checkout when it's already there, otherwise in a temporary worktree, or a temporary blobless clone when you have no local clone; either is removed afterwards.
+- **PR content is treated as untrusted.** The orchestrator and every pass are told never to follow instructions found in the diff, description, comments or linked issues — they can't change the posting mode or what gets posted — and the review payload is never built in a shell, so text from the PR can't run as a command.
 - **`--lite` is a coverage tradeoff, not free.** With it, deprecation checking, test-coverage checking, and comment/type-design review don't happen at all — only correctness, error-handling, and code-quality/hygiene do.
 
 ## Evals
 
-`evals/` holds 8 seeded-bug fixtures (Android, iOS, KMP, a clean refactor, a tiny diff), a setup script and a grader prompt, used to measure recall, false positives, comment count and token cost before and after a change. Results are in [`evals/results.md`](./evals/results.md); see [`evals/README.md`](./evals/README.md) to run them. Not shipped with the skill.
+`evals/` holds 9 seeded-bug fixtures (Android, iOS, KMP, a clean refactor, a tiny diff, a prompt injection), a setup script and a grader prompt, used to measure recall, false positives, comment count and token cost before and after a change. Results are in [`evals/results.md`](./evals/results.md); see [`evals/README.md`](./evals/README.md) to run them. Not shipped with the skill.
 
 ## License
 

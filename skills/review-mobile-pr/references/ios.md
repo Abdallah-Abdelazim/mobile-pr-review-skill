@@ -43,6 +43,7 @@ The compiler catches many data races, but reviews still catch design errors the 
 - Race between `Task` start and view state: don't read `self`-mutable state after an `await` without re-validating it
 - **`sending` used instead of blanket `Sendable`** where a non-`Sendable` value only needs to cross an isolation boundary once and isn't touched again by the caller afterward — cheaper and more precise than making the whole type conform to `Sendable`
 - **Region-based isolation relied on for local data flow** (a value created and consumed entirely within one isolation domain) rather than reaching for `@unchecked Sendable` as a shortcut — if a type needs `@unchecked Sendable` to compile, that's usually a sign the data actually crosses isolation domains and needs real protection
+- **Check the module's default isolation before flagging a missing `@MainActor` or an off-main mutation.** Under default actor isolation (SE-0466 — `.defaultIsolation(MainActor.self)` in the target's `swiftSettings` in `Package.swift`, or `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`; new Xcode 26 app targets default to it) unannotated code is already `@MainActor`. Under `NonisolatedNonsendingByDefault` (SE-0461, part of Xcode 26's Approachable Concurrency, `SWIFT_APPROACHABLE_CONCURRENCY`) a `nonisolated` async function runs on the caller's actor, not the global executor — work meant to leave the main actor needs `@concurrent`
 - **Strict-concurrency checking level is consistent across the target**: a module still compiling at `Minimal`/`Targeted` while the rest of the app is Swift 6 language mode gives a false sense of safety at the boundary — flag a new module or package added without matching the app's concurrency mode
 
 ## SwiftUI
@@ -114,7 +115,7 @@ The compiler catches many data races, but reviews still catch design errors the 
 
 ## WidgetKit, Live Activities & App Intents
 
-- A new user-facing action exposed only through a custom in-app screen, with no `AppIntent` equivalent — App Intents are the default discovery surface (Siri, Spotlight, Shortcuts, widgets) as of iOS 26; flag the missing intent as a discoverability gap, not just style
+- Only when the project already uses App Intents (grep for `AppIntent`): a new user-facing action exposed only through a custom in-app screen, with no `AppIntent` alongside its siblings — a discoverability gap (Siri, Spotlight, Shortcuts, widgets). In a project without App Intents, adopting them is a product decision; don't flag it
 - Interactive widget controls use `Button(intent:)` / `Toggle(isOn:intent:)` backed by an `AppIntent` whose `perform()` runs inside the widget extension — no attempt to launch the host app or read app-process-only state that isn't available to the extension
 - `AppIntent.perform()` bodies stay fast and self-contained, with bounded work — the extension runs under a tight time budget and unbounded network/disk calls risk the system killing it mid-execution
 - Live Activity push-to-start payloads and periodic updates stay under the system's payload size budget — an oversized payload fails **silently** (telemetry only, no crash or error), so "the Live Activity never updates" should be triaged as a payload-size bug first
@@ -174,6 +175,6 @@ The compiler catches many data races, but reviews still catch design errors the 
 
 - New dependencies via SPM with pinned versions (no branch-based deps in production); rationale for each new dep
 - No `.xcodeproj` merge damage: duplicated build-file entries, orphaned references
-- Build settings changed in `.xcconfig`/project deliberately — never silence warnings globally to land a PR (`@Diagnose`/targeted suppression over blanket flags)
+- Build settings changed in `.xcconfig`/project deliberately — never silence warnings globally to land a PR — per-group control (`-Wwarning <group>` / `-Werror <group>`, SE-0443) or, where the toolchain enables it, a scoped `@diagnose(<group>, as: …)` (SE-0522) over blanket flags like `SWIFT_SUPPRESS_WARNINGS`
 - New targets/schemes wired into CI
 - `Info.plist` additions (URL schemes, background modes, purpose strings) match actual features

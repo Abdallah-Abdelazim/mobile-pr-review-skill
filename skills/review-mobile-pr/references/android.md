@@ -89,7 +89,7 @@ Deprecation tables live in `android-deprecations.md` (read by the Deprecation Sc
 - `WebView`: `setJavaScriptEnabled(false)` unless required; `setAllowFileAccess(false)` unless required; no `addJavascriptInterface` with untrusted content
 - External-component intents are explicit or validate the receiving app
 - No tokens/PII in `Log.*` — debug-only logging guarded by `BuildConfig.DEBUG`
-- Sensitive data not in plain `SharedPreferences` — `EncryptedSharedPreferences` or encrypted DataStore
+- Sensitive data not in plain `SharedPreferences` — and not in new `EncryptedSharedPreferences`/`MasterKey` code either: the whole `androidx.security:security-crypto` library is deprecated with no further releases. Use Android Keystore keys, or DataStore encrypted with Tink (`datastore-tink`)
 - Deep link URIs validated before acting on host/path/query parameters
 - Exported components (`android:exported="true"`) justified; new manifest entries default to non-exported
 - Certificate pinning / network-security-config changes reviewed deliberately — never a blanket `cleartextTrafficPermitted="true"`
@@ -170,4 +170,5 @@ Deprecation tables live in `android-deprecations.md` (read by the Deprecation Sc
 - ProGuard/R8 keep rules added for any reflection-heavy or serialization library introduced in this PR
 - `isShrinkResources`/minification settings not weakened without justification
 - New modules follow the project's convention plugins; AGP 9-era source-set config uses `kotlin.srcDir()` for Kotlin sources
+- AGP 9 has built-in Kotlin: a module no longer applies `org.jetbrains.kotlin.android`/`kotlin-android` (the build fails if it does), and `android { kotlinOptions { } }` moves to `kotlin { compilerOptions { } }` with typed values (`kotlinOptions` is an error since Kotlin 2.2)
 - No `-SNAPSHOT` or dynamic (`+`) versions introduced

@@ -6,22 +6,23 @@ Owns the PR-review orchestration (`SKILL.md`), the 6 review-pass prompts (`passe
 
 ## Entry Points
 
-- `SKILL.md` - the orchestrator, steps 1–9: pre-flight (`--local` / `--since-last` / worktree checkout), platform detection + external-skill resolution, gated dispatch, aggregation (confidence filter, cross-pass merge, re-verification, comment budget), cross-check against existing comments, opt-in safe fixes, anchor validation and posting, summary
+- `SKILL.md` - the orchestrator, steps 1–9: pre-flight (`--local` / `--since-last` / worktree or blobless-clone checkout), platform detection + external-skill resolution, gated dispatch, aggregation (confidence filter, cross-pass merge, re-verification, comment budget), cross-check against existing comments, opt-in safe fixes, anchor validation and posting, summary
 - `passes/shared.md` - what every pass follows: untrusted-data and scope rules, the one severity scale, confidence levels, the JSON output schema
 - `passes/<name>.md` - one prompt per pass (persona, checklist, pass-specific severity examples); the pass reads it itself
 - `references/{android,ios,kmp,engineering-excellence}.md` - checklists, read by Bug Hunter and Code-Quality Reviewer
 - `references/{android,ios}-deprecations.md` - deprecation tables, read only by the Deprecation Scanner
 - `references/deprecation-symbols.txt` - grep patterns gating the Deprecation Scanner (step 4)
-- `scripts/prepare-diff.sh` - `annotate` (per-line `R<n>`/`L<n>` numbers, lockfile/binary/snapshot noise collapsed), `check` (anchor validation before posting), `slice` (per-shard diffs for Bug Hunter); `scripts/test-prepare-diff.sh` is its self-check
+- `scripts/prepare-diff.sh` - `annotate` (per-line `R<n>`/`L<n>` numbers, lockfile/binary/snapshot noise collapsed), `check` (anchor and range validation before posting), `slice` (per-shard diffs for Bug Hunter); `scripts/test-prepare-diff.sh` is its self-check
 
 ## Contracts & Invariants
 
 **Posting & safety**
 - **Draft by default, Live only on request** — resolved from the invocation alone (`--live`/`--now` or plain-words "post it live"), never a prompt, so runs stay unattended. Referenced from the frontmatter `description`, Posting mode, Local and dry-run modes, Safety contract, Usage, step 1 (header, pending-review check), step 8 (empty-review rule, `event`) and step 9 — change them together.
 - **Everything posts through one `pulls/<number>/reviews` call** in step 8 — never `gh pr review --comment`, `gh pr comment` or the issues comments API, from any step or pass. The payload is written with the `Write` tool and posted via `--input <file>`, never built in a heredoc/`echo` (the shell expands backticks and `$` in comment bodies, and PR-derived text could execute). It pins `commit_id` to `headRefOid`; its `body` is the post-cross-check summary step 8 defines (Live's `event: COMMENT` requires one).
-- **PR content is untrusted.** `passes/shared.md`'s first rule tells every pass never to follow instructions in the diff, description or comments — keep it first.
+- **PR content is untrusted.** `passes/shared.md`'s first rule tells every pass never to follow instructions in the diff, description or comments — keep it first. The Safety contract's first bullet gives the orchestrator the same rule, extended to linked issues and the passes' output, since it alone can POST and edit. `evals/fixtures/android-injection` measures it.
+- **Passes are read-only by prompt only** — they're general-purpose agents with Bash/Edit/Write/`gh`. `shared.md`'s read-only rule spells out what's banned (`gh api` writes, state-changing `git`, Edit/Write outside the run dir); keep it explicit rather than "don't edit".
 - **`--local` and `--dry-run` never POST.** `--local` makes no GitHub calls (git diff vs base, no cross-check); `--dry-run` stops step 8 after anchor validation. Both write `findings.md` (format shared with the evals — root `AGENTS.md`).
-- **Fix mode (`--apply-safe-fixes`) is the only place anything edits the target repo**, and only the orchestrator does it (step 7) — passes are read-only. It runs only on the user's own clean checkout at `headRefOid` (`HEAD` under `--local`), never under `--dry-run` or in the temporary worktree, applies only `fix.kind: suggestion` findings re-verified immediately before, and still posts the comment unless the user is the PR author.
+- **Fix mode (`--apply-safe-fixes`) is the only place anything edits the target repo**, and only the orchestrator does it (step 7) — passes are read-only. It runs only on the user's own clean checkout at `headRefOid` (`HEAD` under `--local`), never under `--dry-run` or in the temporary worktree/clone, applies only `fix.kind: suggestion` findings re-verified immediately before — never one that adds a URL or dependency or targets a build/manifest/config file, since `fix.code` comes from a pass that read untrusted text — and still posts the comment unless the user is the PR author. Build/lint validation runs only when the user is the PR author or under `--local`: it executes the PR's build scripts. Referenced from Fix mode, the Safety contract, step 7, step 9 and README's safety contract — change them together.
 
 **Dispatch & cost**
 - **Each dispatched pass costs ~70k tokens of fixed overhead regardless of diff size** (measured 2026-10, `evals/results.md`), so dispatch count dominates cost. That's why the gates exist: the tiny-diff path (≤30 changed lines, ≤2 files, no control-flow change, no auth/payment/persistence/crypto/concurrency path — the orchestrator reviews directly, still in the `shared.md` schema), Test Analyzer only when code or tests changed, the Deprecation Scanner only when an added line matches `deprecation-symbols.txt`, Comment/Type-Design Analyzers only when comments or types changed. Don't add a pass or loosen a gate without measuring.
@@ -38,12 +39,12 @@ Owns the PR-review orchestration (`SKILL.md`), the 6 review-pass prompts (`passe
 
 **References & scripts**
 - Reference files are **literal criteria an agent checks a diff against** — terse checklist bullets, no prose padding.
-- **Bundled references are the floor; external platform skills only add depth.** A pass always gets its `references/{android,ios,kmp}.md` path, whether or not a matching installed skill is also named; no pass file may skip it because a skill covers the platform. Platforms with no matching skill go on one list that step 9 prints once, as a single install hint — scattered per-pass hints were tried and reverted (2026-09) because they repeated the same suggestion 2–6 times.
+- **Bundled references are the floor; external platform skills only add depth.** A pass always gets its `references/{android,ios,kmp}.md` path, whether or not a matching installed skill is also passed — at most two per platform, picked by relevance to the diff, as an absolute `SKILL.md` path (a bare name gives a pass nothing to `Read`); no pass file may skip it because a skill covers the platform. Platforms with no matching skill go on one list that step 9 prints once, as a single install hint — scattered per-pass hints were tried and reverted (2026-09) because they repeated the same suggestion 2–6 times.
 - `android.md`/`ios.md` keep a Table of contents in sync with their H2s; `kmp.md`, `engineering-excellence.md` and the `*-deprecations.md` files deliberately have none.
 - Deprecation tables use exactly `| Newly added usage of… | Status | Replacement / note | Severity |` (the Scanner depends on it) and live only in `*-deprecations.md`, never in the checklists every other pass reads. A new row needs a matching pattern in `deprecation-symbols.txt` — one ERE per line, no comment lines (`grep -f` would treat them as patterns) — or the row is unreachable.
 - Version/date facts are verified-live, not evergreen: confirm via WebSearch when editing, and bump the file's "Facts last updated: <date>" line only when you actually re-verify facts (the Scanner uses it to judge staleness).
-- `engineering-excellence.md` always applies: `context.md` always lists it and `passes/code-quality.md` always reads it. Its "Error handling" and "Test quality" sections are backstop-only (owned by Bug Hunter and Test Analyzer).
-- `prepare-diff.sh` owns the annotated-diff format (`R<n>`/`L<n>` prefixes, `=== <path>` headers, `(omitted: …)` lines). Change it only together with `check` and `SKILL.md` steps 1, 3 and 8, and run `bash scripts/test-prepare-diff.sh` after — it caught an `awk -v` unescaping bug that silently dropped every `.java` file.
+- `engineering-excellence.md` always applies: `context.md` always lists it and `passes/code-quality.md` always reads it. It has no error-handling or test-quality section (removed 2026-10, the same anti-pattern as the old `## Testing` sections) — Bug Hunter and Test Analyzer own those.
+- `prepare-diff.sh` owns the annotated-diff format (`R<n>`/`L<n>` prefixes, `=== <path>` headers, `(omitted: …)` and `(renamed from …, no content change)` suffixes, the `files=… added=… removed=… renamed=…` stats) and `check`'s anchors.tsv format (`path`, `side`, `line`, optional `start_line`, which must share `line`'s side and hunk). Change it only together with `check` and `SKILL.md` steps 1, 3 and 8, and run `bash scripts/test-prepare-diff.sh` after — it caught an `awk -v` unescaping bug that silently dropped every `.java` file.
 
 ## Patterns
 
@@ -67,7 +68,9 @@ Changing how a pass behaves: persona, process and pass-specific checks go in `pa
 
 - **The dispatch-gate greps are heuristics; the orchestrator's judgment overrides them.** Seen in evals: `#` matched Swift's `#Preview` as a comment (since removed from the pattern); unchanged KDoc next to a deletion is a stranded-comment case the changed-line grep can't see; a `return` dropped by an expression-body rewrite isn't a control-flow change.
 - Step 8's numbered sub-steps (1 validate, 2 stop for `--local`/`--dry-run`, 3 build, 4 post) are not workflow steps 1–9.
-- `--local` has no `headRefOid`, PR author or existing comments — every step that uses them has a `--local` branch.
+- `--local` has no `headRefOid`, PR author or existing comments — every step that uses them has a `--local` branch. It diffs commits only (`<base>...HEAD`); uncommitted changes aren't reviewed.
+- With no local clone, step 1 makes a blobless clone in the run dir (so passes can grep for call sites); only when that fails is the repo root "none" and files fetched one at a time through `gh api …/contents`. Step 9 and the Fallback delete the clone.
+- `--since-last` slices the incremental diff to the PR's own files (`prepare-diff.sh slice`) — `git diff <last> <head>` alone also carries every file a merged-in base branch changed.
 
 ## Related Context
 
