@@ -1,39 +1,46 @@
 # mobile-pr-review
 
-An [agent skill](https://github.com/vercel-labs/skills) for expert Android, iOS & Kotlin Multiplatform (KMP) pull request review. By default it saves every finding as a **PENDING (draft) GitHub review** — invisible until you manually submit it — pass `--live` (or ask for it) to post immediately instead. It never stops to ask.
+[![CI](https://github.com/Abdallah-Abdelazim/mobile-pr-review-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/Abdallah-Abdelazim/mobile-pr-review-skill/actions/workflows/ci.yml)
 
-Reviews Kotlin/Jetpack Compose/Gradle, Swift/SwiftUI/UIKit, and KMP code — including shared **Compose Multiplatform** UI — against up-to-date (2026) platform deprecations, Swift 6 / Compose best practices, code smells, and software-engineering excellence standards.
+An [agent skill](https://github.com/vercel-labs/skills) that reviews Android, iOS and Kotlin Multiplatform (KMP) pull requests. By default it saves every finding as a pending (draft) GitHub review, which nobody else sees until you submit it. Pass `--live`, or ask for it, to post immediately instead. It runs without stopping to ask questions.
+
+It reviews Kotlin, Jetpack Compose and Gradle; Swift, SwiftUI and UIKit; and KMP code, including shared Compose Multiplatform UI. It checks for platform APIs deprecated as of 2026, Swift 6 and Compose best practices, code smells, and general engineering standards.
 
 ## What's inside
 
-- **1 skill** — `review-mobile-pr`, the orchestrator. Invoke it with a PR URL or number and it runs the whole review end to end.
-- **6 built-in review passes**, each a prompt file in the skill (`passes/*.md`), dispatched in parallel, each a self-contained specialist:
+The skill is one orchestrator, `review-mobile-pr`. Give it a PR URL or number and it runs the whole review.
 
-  | Pass | Focus |
-  |---|---|
-  | Bug Hunter | Correctness — forgotten call sites, unhappy paths, wrong/non-exhaustive logic, contract mismatches, concurrency bugs — plus a dedicated error-handling lens: swallowed exceptions, unjustified fallbacks, overly broad catches |
-  | Code-Quality Reviewer | Code smells, dead/unused code, duplication, SOLID/naming/PR-scope, platform checklist backstop |
-  | Deprecation Scanner | APIs deprecated/superseded/removed as of 2026 (Android 16/17 — API 36/37, Swift 6, iOS 17–26) |
-  | Test Analyzer | Test coverage gaps and tests that don't exercise what they claim to |
-  | Comment Analyzer | Comment/doc accuracy, stranded artifacts from incomplete deletions |
-  | Type-Design Analyzer | Type encapsulation and invariant expression (Kotlin sealed classes/data classes, Swift structs/enums/protocols) |
+It has 6 review passes. Each is a prompt file in the skill (`passes/*.md`), and the passes run in parallel:
 
-Bug Hunter and Code-Quality Reviewer read the platform reference checklist matching the diff — `android.md`, `ios.md`, or `kmp.md` — the last of which includes a dedicated **Compose Multiplatform** section (shared Composables, `expect`/`actual` UI, CMP resources, cross-platform navigation, iOS `ComposeUIViewController` embedding), plus one bundled, cross-cutting checklist (`engineering-excellence.md`) for code smells, dead code, SOLID, naming, PR hygiene, and docs. The Deprecation Scanner reads the separate `android-deprecations.md` / `ios-deprecations.md` tables.
+| Pass | Focus |
+|---|---|
+| Bug Hunter | Correctness: forgotten call sites, unhappy paths, wrong or non-exhaustive logic, contract mismatches, concurrency bugs. It also looks hard at error handling: swallowed exceptions, unjustified fallbacks, overly broad catches |
+| Code-Quality Reviewer | Code smells, dead or unused code, duplication, SOLID, naming, PR scope, and the platform checklist as a backstop |
+| Deprecation Scanner | APIs deprecated, superseded or removed as of 2026 (Android 16 and 17, API 36 and 37; Swift 6; iOS 17 to 26) |
+| Test Analyzer | Gaps in test coverage, and tests that don't exercise what they claim to |
+| Comment Analyzer | Whether comments and docs are accurate, and comments left behind by incomplete deletions |
+| Type-Design Analyzer | Encapsulation and invariants in types (Kotlin sealed and data classes, Swift structs, enums and protocols) |
 
-No separate agent files and no external dependency beyond the GitHub CLI and `git` (plus `bash`/`awk`, standard on macOS and Linux) — everything this skill needs, including every review pass's prompt and every platform reference file, ships inside this one skill directory; a review is fully covered with nothing else installed.
+Bug Hunter and Code-Quality Reviewer read the platform checklist that matches the diff: `android.md`, `ios.md` or `kmp.md`. `kmp.md` has a Compose Multiplatform section covering shared Composables, `expect`/`actual` UI, CMP resources, cross-platform navigation and embedding through `ComposeUIViewController` on iOS. Both passes also read `engineering-excellence.md`, a cross-platform checklist for code smells, dead code, SOLID, naming, PR hygiene and docs. The Deprecation Scanner reads its own tables in `android-deprecations.md` and `ios-deprecations.md`.
+
+The skill has no separate agent files and needs nothing beyond the GitHub CLI, `git`, and the `bash` and `awk` that come with macOS and Linux. The pass prompts, the mode procedures (`modes/*.md`, read only when their flag is set) and the platform references all ship in the one skill directory, so a full review needs nothing else installed.
 
 ## How a review runs
 
-1. **Pre-flight** — fetches the PR, its linked issues and existing comments (stopping if the PR is merged or closed); checks out the PR head in a temporary worktree, or in a temporary blobless clone when you have no local clone (your own branch is never switched); writes the diff to a file with every line pre-numbered, so comment line numbers are copied, not guessed.
-2. **Dispatch** — runs only the passes that have something to check, in parallel. Each pass reads the diff and its own prompt from files; nothing large is pasted into prompts.
-3. **Aggregate** — merges the same problem reported by several passes into one finding, re-verifies every Critical/High (and every uncertain) finding against the code, drops what doesn't hold up, and keeps at most 5 optional findings inline (the rest go in the review summary).
-4. **Post** — validates every comment's line against the diff, then posts one review: inline comments plus a short summary body, pinned to the reviewed commit.
+1. **Pre-flight.** The skill fetches the PR, its linked issues and its existing comments, and stops if the PR is merged or closed. It checks out the PR head in a temporary worktree, or in a temporary blobless clone if you have no local clone, and never switches your own branch. It writes the diff to a file with every line already numbered, so comments copy their line numbers instead of guessing them.
+2. **Dispatch.** Only the passes that have something to check run, in parallel. Each pass reads the diff and its own prompt from files, so nothing large is pasted into prompts.
+3. **Aggregate.** When several passes report the same problem, the skill merges them into one finding. It re-checks every Critical and High finding, and every uncertain one, against the code, and drops whatever doesn't hold up. At most 5 optional findings are posted inline; the rest go in the review summary.
+4. **Post.** The skill checks every comment's line against the diff, then posts one review with the inline comments and a short summary, pinned to the commit it reviewed.
 
-Each review pass costs roughly 70k tokens before it reads the diff, so dispatch count — not diff size — drives cost. The skill only dispatches passes with something to check: Test Analyzer only when code or tests changed, Deprecation Scanner only when an added line matches a known deprecated symbol, Comment and Type-Design Analyzers only when comments or types changed. Three cost tiers, from cheapest to most thorough: the tiny-diff path (≤30 changed lines in ≤2 files, no control-flow change, nothing on an auth/payment/persistence/concurrency path — reviewed directly with zero passes), `--lite` (2 passes — Bug Hunter + Code-Quality Reviewer only, see below), and the full dispatch (the default for anything that isn't tiny). Diffs above ~1,500 changed lines split Bug Hunter into 2–3 shards.
+Each pass costs roughly 70k tokens before it reads the diff, so the number of passes drives cost far more than the size of the diff. That's why passes only run when they have something to check: Test Analyzer when code or tests changed, Deprecation Scanner when an added line matches a known deprecated symbol, and the Comment and Type-Design Analyzers when comments or types changed.
+
+There are three cost tiers. A tiny diff (at most 30 changed lines in at most 2 files, no control-flow change, nothing on an auth, payment, persistence or concurrency path) is reviewed directly with no passes. `--lite` runs 2 passes, Bug Hunter and Code-Quality Reviewer. Everything else gets the full dispatch. Diffs above about 1,500 changed lines split Bug Hunter into 2 or 3 shards.
+
+Bug Hunter and Code-Quality Reviewer find most of the issues, so they run on Opus. The four narrower passes run on Sonnet, and all six use high effort. On a host whose agent tool can't pick a model, passes run on the host's default.
 
 ## What a comment looks like
 
-Every comment leads with severity, category and what to do — **must fix**, **should fix**, **consider** or **optional** — then one short paragraph with the evidence, a **Fails when:** line for bugs, and the fix (a one-click `suggestion` block when it's a clean drop-in):
+Each comment starts with the severity, the category and what to do (**must fix**, **should fix**, **consider** or **optional**). Then comes one short paragraph of evidence, a **Fails when:** line for bugs, and the fix. When the fix is a clean drop-in replacement, it's a `suggestion` block the author can apply with one click:
 
 ````
 🔴 **Critical · Bug · must fix** — `items.first()` crashes when the cart is empty
@@ -47,30 +54,30 @@ Every comment leads with severity, category and what to do — **must fix**, **s
 ```
 ````
 
-The review's summary body counts findings by label, names the top risk, and lists anything that can't be anchored to a diff line (e.g. a caller in a file the PR didn't touch).
+The review's summary counts findings by label, names the top risk, and lists anything that can't be anchored to a diff line, such as a caller in a file the PR didn't touch.
 
 ## Optional: deeper platform coverage
 
-The bundled reference files above are the floor — nothing extra is required. If you also have a platform-specific skill installed, this skill layers it in as **extra depth on top of the bundled checklist, never a replacement** (at most two per platform, picked by relevance to the diff):
+The bundled reference files are enough on their own. If you also have a platform skill installed, the review consults it on top of the bundled checklist, which it always reads. It uses at most two such skills per platform, picked by how relevant they are to the diff:
 
 | Platform | Example skills |
 |---|---|
-| Android/Kotlin/Compose/Gradle | [`android/skills`](https://github.com/android/skills), [`chrisbanes/skills`](https://github.com/chrisbanes/skills), or any other Android/Compose skill you have installed |
-| Swift/SwiftUI/UIKit/Xcode | [`AvdLee/SwiftUI-Agent-Skill`](https://github.com/AvdLee/SwiftUI-Agent-Skill), or any other SwiftUI/UIKit skill |
-| Firebase (any platform) | [`firebase/agent-skills`](https://github.com/firebase/agent-skills) — Firebase has no bundled reference of its own, so this is the only source for it |
-| Kotlin/KMP | [`Kotlin/kotlin-agent-skills`](https://github.com/Kotlin/kotlin-agent-skills), or any other Kotlin-tooling/KMP skill |
+| Android/Kotlin/Compose/Gradle | [`android/skills`](https://github.com/android/skills), [`chrisbanes/skills`](https://github.com/chrisbanes/skills), or any other Android or Compose skill you have installed |
+| Swift/SwiftUI/UIKit/Xcode | [`AvdLee/SwiftUI-Agent-Skill`](https://github.com/AvdLee/SwiftUI-Agent-Skill), or any other SwiftUI or UIKit skill |
+| Firebase (any platform) | [`firebase/agent-skills`](https://github.com/firebase/agent-skills). Firebase has no bundled reference, so an installed skill is the only Firebase-specific source |
+| Kotlin/KMP | [`Kotlin/kotlin-agent-skills`](https://github.com/Kotlin/kotlin-agent-skills), or any other Kotlin tooling or KMP skill |
 
-Nothing installed for a platform your diff touches? The review proceeds on the bundled reference alone, and prints one combined hint at the very end suggesting what to install for next time — never scattered through the review itself.
+If nothing is installed for a platform your diff touches, the review uses the bundled reference alone. At the very end it prints one combined hint about what to install next time.
 
 ## Install
 
-Install with the [`skills` CLI](https://github.com/vercel-labs/skills), which works across coding agents — swap `claude-code` below for your agent's identifier if you use a different one:
+Install with the [`skills` CLI](https://github.com/vercel-labs/skills), which works across coding agents. If you use a different agent, swap `claude-code` below for its identifier:
 
 ```
 npx skills add https://github.com/Abdallah-Abdelazim/mobile-pr-review-skill/tree/main/skills/review-mobile-pr --agent claude-code
 ```
 
-This drops the skill into `.claude/skills/review-mobile-pr/` in the current project (or pass `--global` to install it to `~/.claude/skills/` instead, available in every project). Restart your agent (or start a new session) so it picks up the new skill.
+This puts the skill in `.claude/skills/review-mobile-pr/` in the current project. Pass `--global` to install it to `~/.claude/skills/` instead, where every project can use it. Restart your agent or start a new session so it picks up the skill.
 
 ### Use it
 
@@ -85,27 +92,30 @@ This drops the skill into `.claude/skills/review-mobile-pr/` in the current proj
 /review-mobile-pr <number> --since-last        # re-review only the commits pushed since your last review
 /review-mobile-pr --local [<base>]             # self-review the current branch vs <base> before opening a PR; no GitHub calls; commits only — uncommitted changes are ignored
 ```
-Flags combine — `--lite --apply-safe-fixes` works together.
 
-Requires the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against the target repo (`gh auth status`).
+Flags combine, so `--lite --apply-safe-fixes` works.
+
+It needs the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against the target repo (`gh auth status`).
 
 ## Safety contract
 
-- **Draft by default.** Unless you explicitly asked for Live (`--live`/`--now`, or saying so in your request), every comment is saved as part of a **pending** GitHub review, visible only to you until you open the PR and submit it yourself.
-- **Live posts everything at once**, the moment the review finishes — still just comments, never an approval or a change request; this skill reports findings, it doesn't gate the PR.
-- The skill never uses `gh pr review --comment`, `gh pr comment`, or any GitHub write API call that bypasses the single review it builds. That review carries a short summary body (finding counts, top risk, findings not tied to a diff line) written after all findings are final, pinned to the exact commit that was reviewed.
-- If you already have a pending review on the PR, the skill stops before reviewing (GitHub allows one per user) and asks you to submit or delete it first. With zero findings, nothing is posted.
-- **Fix mode on someone else's PR still posts the comment** for each fix it applies locally, so the author sees it, and skips build/lint validation, which would run that PR's build scripts on your machine. The applied fixes are left uncommitted and unpushed, and the summary shows their full diff.
-- If the API call fails, it prints the findings to your terminal instead of falling back to any other posting mechanism, in either mode.
-- **The skill never edits your repo's files, unless you explicitly pass `--apply-safe-fixes`.** Even then, it only ever auto-applies a narrow class of unambiguous, single-line-grade fixes — never one that adds a URL or a dependency or touches a build, manifest or config file — and anything else still becomes a review comment for you to act on yourself.
-- **Reviews the PR's actual code.** Lookups (call sites, tests, definitions) run against the PR head — in your checkout when it's already there, otherwise in a temporary worktree, or a temporary blobless clone when you have no local clone; either is removed afterwards.
-- **PR content is treated as untrusted.** The orchestrator and every pass are told never to follow instructions found in the diff, description, comments or linked issues — they can't change the posting mode or what gets posted — and the review payload is never built in a shell, so text from the PR can't run as a command.
-- **`--lite` is a coverage tradeoff, not free.** With it, deprecation checking, test-coverage checking, and comment/type-design review don't happen at all — only correctness, error-handling, and code-quality/hygiene do.
+- **Draft by default.** Unless you ask for Live (`--live`, `--now`, or saying so in your request), every comment goes into a pending GitHub review that only you can see until you open the PR and submit it.
+- **Live posts everything at once** when the review finishes. It only posts comments, never an approval or a change request, because the skill reports findings and doesn't gate the PR.
+- The skill never uses `gh pr review --comment`, `gh pr comment`, or any other GitHub write call outside the single review it builds. That review has a short summary (finding counts, top risk, findings not tied to a diff line), written after all findings are final and pinned to the exact commit reviewed.
+- If you already have a pending review on the PR, the skill stops before reviewing, since GitHub allows one per user, and asks you to submit or delete it first. If there are no findings, nothing is posted.
+- **Fix mode on someone else's PR still posts the comment** for each fix it applies locally, so the author sees it. It also skips build and lint validation there, because that would run the PR's build scripts on your machine. Applied fixes stay uncommitted and unpushed, and the summary shows their full diff.
+- If the API call fails, the skill prints the findings to your terminal. It never falls back to another way of posting, in either mode.
+- **The skill edits your repo's files only if you pass `--apply-safe-fixes`.** Even then it applies only small, unambiguous fixes of about one line. It never auto-applies a fix that adds a URL or a dependency or touches a build, manifest or config file. Everything else becomes a review comment for you to act on.
+- **It reviews the PR's actual code.** Lookups for call sites, tests and definitions run against the PR head: in your checkout if it's already there, otherwise in a temporary worktree, or in a temporary blobless clone if you have no local clone. Temporary copies are removed afterwards.
+- **PR content is treated as untrusted.** The orchestrator and every pass are told never to follow instructions found in the diff, description, comments or linked issues, so that text can't change the posting mode or what gets posted. The review payload is never built in a shell, so text from the PR can't run as a command.
+- **`--lite` gives up coverage to save cost.** With it, there's no deprecation checking, no test-coverage checking, and no comment or type-design review. Only correctness, error handling, and code quality and hygiene are checked.
 
 ## Evals
 
-`evals/` holds 9 seeded-bug fixtures (Android, iOS, KMP, a clean refactor, a tiny diff, a prompt injection), a setup script and a grader prompt, used to measure recall, false positives, comment count and token cost before and after a change. Results are in [`evals/results.md`](./evals/results.md); see [`evals/README.md`](./evals/README.md) to run them. Not shipped with the skill.
+`evals/` has 9 fixtures with seeded bugs (Android, iOS, KMP, a clean refactor, a tiny diff and a prompt injection), a setup script, a grader prompt, and `evals/run.sh`. The script runs the review and the grader on each fixture with `claude -p`, capping what each call can spend. Together they measure recall, false positives, comment count and token cost before and after a change. Results are in [`evals/results.md`](./evals/results.md), and [`evals/README.md`](./evals/README.md) explains how to run them. The evals don't ship with the skill.
+
+CI (`.github/workflows/ci.yml`, on Ubuntu and macOS) runs the `prepare-diff.sh` self-check, checks that every deprecation-table row matches a gate pattern in `deprecation-symbols.txt`, and fails if anything in the shipped skill references `evals/`. It doesn't run the evals.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT. See [LICENSE](./LICENSE).
