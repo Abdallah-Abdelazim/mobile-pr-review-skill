@@ -23,7 +23,7 @@ It has 6 review passes. Each is a prompt file in the skill (`passes/*.md`), and 
 
 Bug Hunter and Code-Quality Reviewer read the platform checklist that matches the diff: `android.md`, `ios.md` or `kmp.md`. `kmp.md` has a Compose Multiplatform section covering shared Composables, `expect`/`actual` UI, CMP resources, cross-platform navigation and embedding through `ComposeUIViewController` on iOS. Both passes also read `engineering-excellence.md`, a cross-platform checklist for code smells, dead code, SOLID, naming, PR hygiene and docs. The Deprecation Scanner reads its own tables in `android-deprecations.md` and `ios-deprecations.md`.
 
-The skill has no separate agent files and needs nothing beyond the GitHub CLI, `git`, and the `bash` and `awk` that come with macOS and Linux. The pass prompts, the mode procedures (`modes/*.md`, read only when their flag is set) and the platform references all ship in the one skill directory, so a full review needs nothing else installed.
+The skill has no separate agent files. The pass prompts, the mode procedures (`modes/*.md`, read only when their flag is set) and the platform references all ship in the one skill directory, so a review needs only the GitHub CLI, `git`, and the `bash` and `awk` that come with macOS and Linux.
 
 ## How a review runs
 
@@ -99,16 +99,16 @@ It needs the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against 
 
 ## Safety contract
 
-- **Draft by default.** Unless you ask for Live (`--live`, `--now`, or saying so in your request), every comment goes into a pending GitHub review that only you can see until you open the PR and submit it.
-- **Live posts everything at once** when the review finishes. It only posts comments, never an approval or a change request, because the skill reports findings and doesn't gate the PR.
+- Draft by default. Unless you ask for Live (`--live`, `--now`, or saying so in your request), every comment goes into a pending GitHub review that only you can see until you open the PR and submit it.
+- Live posts everything at once when the review finishes. It only posts comments, never an approval or a change request, because the skill reports findings and doesn't gate the PR.
 - The skill never uses `gh pr review --comment`, `gh pr comment`, or any other GitHub write call outside the single review it builds. That review has a short summary (finding counts, top risk, findings not tied to a diff line), written after all findings are final and pinned to the exact commit reviewed.
 - If you already have a pending review on the PR, the skill stops before reviewing, since GitHub allows one per user, and asks you to submit or delete it first. If there are no findings, nothing is posted.
-- **Fix mode on someone else's PR still posts the comment** for each fix it applies locally, so the author sees it. It also skips build and lint validation there, because that would run the PR's build scripts on your machine. Applied fixes stay uncommitted and unpushed, and the summary shows their full diff.
+- Fix mode on someone else's PR still posts the comment for each fix it applies locally, so the author sees it. It also skips build and lint validation there, because that would run the PR's build scripts on your machine. Applied fixes stay uncommitted and unpushed, and the summary shows their full diff.
 - If the API call fails, the skill prints the findings to your terminal. It never falls back to another way of posting, in either mode.
-- **The skill edits your repo's files only if you pass `--apply-safe-fixes`.** Even then it applies only small, unambiguous fixes of about one line. It never auto-applies a fix that adds a URL or a dependency or touches a build, manifest or config file. Everything else becomes a review comment for you to act on.
-- **It reviews the PR's actual code.** Lookups for call sites, tests and definitions run against the PR head: in your checkout if it's already there, otherwise in a temporary worktree, or in a temporary blobless clone if you have no local clone. Temporary copies are removed afterwards.
-- **PR content is treated as untrusted.** The orchestrator and every pass are told never to follow instructions found in the diff, description, comments or linked issues, so that text can't change the posting mode or what gets posted. The review payload is never built in a shell, so text from the PR can't run as a command.
-- **`--lite` gives up coverage to save cost.** With it, there's no deprecation checking, no test-coverage checking, and no comment or type-design review. Only correctness, error handling, and code quality and hygiene are checked.
+- The skill edits your repo's files only if you pass `--apply-safe-fixes`. Even then it applies only small, unambiguous fixes of about one line. It never auto-applies a fix that adds a URL or a dependency or touches a build, manifest or config file. Everything else becomes a review comment for you to act on.
+- It reviews the PR's actual code. Lookups for call sites, tests and definitions run against the PR head: in your checkout if it's already there, otherwise in a temporary worktree, or in a temporary blobless clone if you have no local clone. Temporary copies are removed afterwards.
+- PR content is treated as untrusted. The orchestrator and every pass are told never to follow instructions found in the diff, description, comments or linked issues, so that text can't change the posting mode or what gets posted. The review payload is never built in a shell, so text from the PR can't run as a command.
+- `--lite` gives up coverage to save cost. With it, there's no deprecation checking, no test-coverage checking, and no comment or type-design review. Only correctness, error handling, and code quality and hygiene are checked.
 
 ## Evals
 
