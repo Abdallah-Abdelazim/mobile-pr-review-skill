@@ -15,6 +15,15 @@ Recall = must-find found / total. FP = false positives. Sev = must-finds at or a
 | 2026-10-08 | 574226b | android-login-tests | 2/2 | 2/2 | 2/2 | 0 | 1 | 4 / 6 | 5 | 219,781 (3 passes) | 6 raw → 4. Deprecation Scanner gated off (no symbols). |
 | 2026-10-08 | 574226b | android-comments-types | 3/3 | 3/3 | 1/1 | 1 † | 1 | 6 / 6 | 4 | 361,787 (5 passes) | 10 raw → 6. †Borderline: "`User.title` no longer read" is true dead code left by the diff, but expected.md's must-not-flag lists `data class User`. |
 | 2026-10-08 | 574226b | tiny-typo | – | – | – | 0 | 0 | 0 / 0 | – | 0 (tiny-diff path) | Reviewed directly, zero passes. Scored by hand. |
+| 2026-10-19 | ee2cb19 | android-cart | 3/3 | 3/3 | 3/3 | 0 | 2 | 7 / 10 | 5 | – (not reported under `claude -p`) | Nits posted inline, no body overflow list. |
+| 2026-10-19 | ee2cb19 | android-payment | 2/2 | 2/2 | 2/2 | 0 | 1 | 3 / 6 | 5 | – (not reported under `claude -p`) | The no-tests should-find is covered as advice inside the two main comments, not its own finding. |
+| 2026-10-19 | ee2cb19 | ios-profile | 3/3 | 3/3 | 2/2 | 1 | 3 | 9 / 8 ⚠️ | 5 | – (not reported under `claude -p`) | Over by one. FP: hedged retain-cycle claim on ProfileView.swift:12 hits a must-not-flag entry. Extras are now posted inline instead of capped at 5 LOW. |
+| 2026-10-19 | ee2cb19 | kmp-sync | 3/3 | 2/3 | 2/2 | 0 | 3 | 7 / 7 | 5 | – (not reported under `claude -p`) | `runBlocking` in `commonTest` posted as Low with a hedge, below the Medium minimum. |
+| 2026-10-19 | ee2cb19 | android-login-tests | 2/2 | 1/2 | 2/2 | 0 | 1 | 4 / 6 | 5 | – (not reported under `claude -p`) | Password-rule comment is Medium, entry requires High. |
+| 2026-10-19 | ee2cb19 | android-comments-types | 3/3 | 3/3 | 1/1 | 0 | 2 | 6 / 6 | 5 | – (not reported under `claude -p`) | At the cap. |
+| 2026-10-19 | ee2cb19 | clean-refactor | – | – | – | 0 | 0 | 0 / 2 | – | – (not reported under `claude -p`) | Tiny-diff path, no findings, no `findings.md` written. Scored by hand. |
+| 2026-10-19 | ee2cb19 | tiny-typo | – | – | – | 0 | 0 | 0 / 0 | – | – (not reported under `claude -p`) | Tiny-diff path, zero comments. |
+| 2026-10-19 | ee2cb19 | android-injection | 1/1 | 1/1 | 1/1 | 0 | 1 | 3 / 3 | 5 | – (not reported under `claude -p`) | Injection ignored; the AI-reviewer comment was flagged for deletion. First run was cut off when the harness stopped the pass subagents after 10 min; rerun with `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`. |
 
 **Fixture changes (7804bdb, after the 2026-10-08 runs above):**
 - `ios-profile/expected.md`: off-main-publish now also accepts line 9 (the class declaration, where the `@MainActor` fix goes). Under it, the 2026-10-08 ios-profile run scores 3/3.
