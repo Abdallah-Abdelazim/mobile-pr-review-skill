@@ -221,14 +221,14 @@ The deprecation pass is dispatched separately in step 4, since it needs the depr
 
 Skip this step entirely under `--lite` (see "Review mode" above). Otherwise, when the diff touches Android and/or iOS files, pre-scan the added lines first: `grep -E '^R[0-9]+ \+' <run dir>/pr.diff | grep -Ec -f <skill dir>/references/deprecation-symbols.txt`. **Zero matches → skip the pass** and note `deprecation scan: no candidate symbols` in the summary — a pass costs ~70k tokens and the baseline evals show it returns nothing on such diffs. Any match → dispatch the Deprecation Scanner (in the same parallel batch as step 3). Dispatch it exactly like step 3's passes (one-line prompt pointing at `context.md`, `pr.diff` and `passes/deprecation-scanner.md`); `context.md` already lists the `android-deprecations.md`/`ios-deprecations.md` path(s) and any installed Android/iOS skill. It reads the deprecation tables itself and flags newly-added usage of anything deprecated, removed, or superseded as of 2026 (Android 16/API 36, Swift 6, iOS 17–26), web-searching anything it doesn't recognize rather than guessing. Skip this dispatch entirely for a pure-KMP-common diff with no `androidMain`/`iosMain` files touched.
 
-### 5. Aggregate, verify and budget findings
+### 5. Aggregate and verify findings
 
 Parse every pass's JSON array into one pool (a pass that returned prose instead of JSON: extract its findings by hand rather than dropping them). Then, in order:
 
 1. **Drop LOW-confidence findings** outright, regardless of severity — a wrong finding costs the author's trust more than a missed one costs coverage.
 2. **Merge duplicates across passes.** Passes overlap by design (Bug Hunter and Code-Quality both see a forgotten `when` branch; Test Analyzer reports the same lines as an untested bug), so the same problem often arrives two to four times. Findings on the same `path` with overlapping lines (or naming the same out-of-diff location) and the same root cause are one finding: keep the highest severity, the clearest `title`/`body`, the best `fix` (a `suggestion` beats `code` beats `none`), and the union of `evidence`; fold in a one-clause fact a merged finding adds that the kept one lacks ("no test covers this path"). Count merges for the summary. Separately, when distinct findings land on the same lines with fixes that overlap or conflict (a one-line `suggestion` plus a refactor of the same statement), make them consistent — one combined fix on the most severe, and a one-line pointer ("see the comment above for the fix") on the others. When unsure whether two findings share a root cause, merge only if one's fix would also resolve the other.
 3. **Re-verify** every CRITICAL/HIGH finding and every MEDIUM-confidence finding before trusting it. Use its `evidence` as the starting point and check it yourself with `grep`/`Read` in the repo root (a call site, a default value, what a function returns, what the repository documents). Drop a finding the code contradicts. Keep one you can't confirm or refute, but reword its `body` conditionally ("If `items` can be empty here, …") and cap it at MEDIUM. Count verified / softened / dropped for the summary.
-4. **Apply the comment budget.** Every CRITICAL/HIGH/MEDIUM finding is posted inline. Of the LOW findings (nits included), post at most 5 inline — the most valuable first; the rest go to the body's collapsed "More optional findings" list (step 8). QUESTION findings keep their own cap of 5 (see `passes/bug-hunter.md`).
+4. **Post every surviving finding inline**, nits included — never fold LOW findings into the review body. QUESTION findings keep their own cap of 5 (see `passes/bug-hunter.md`).
 
 ### 6. Cross-check against existing PR comments
 
@@ -267,11 +267,6 @@ Top risk: <one line, `file` named — omit when nothing is must fix>
 
 **Not tied to a diff line:**          ← omit section when empty
 - <title> — <one sentence>
-
-<details><summary><n> more optional findings</summary>   ← step 5's budget overflow; omit when empty
-
-- `<path>:<line>` — <title>
-</details>
 ```
 
 Then, in this order:
@@ -408,7 +403,6 @@ By category (the findings' `category` field; omit zero rows):
 
 🔀 Merged across passes: <n>
 🔎 Re-verified: <n> confirmed · <n> softened · <n> dropped
-📦 Optional findings moved to the body (budget): <n>
 🔁 Duplicates skipped (already on PR): <n>
 🚫 Dropped for low confidence: <n>
 
