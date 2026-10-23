@@ -21,7 +21,7 @@ query($owner: String!, $repo: String!, $number: Int!, $endCursor: String) {
       reviewThreads(first: 50, after: $endCursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
-          id isResolved isOutdated path line originalLine viewerCanReply
+          id isResolved isOutdated path line originalLine viewerCanReply viewerCanUnresolve
           resolvedBy { login }
           comments(first: 50) { nodes { author { __typename login } body createdAt url diffHunk } }
         }
@@ -35,7 +35,7 @@ then:
 
 ```bash
 gh api graphql --paginate -F query=@<run dir>/threads.graphql -F owner=<owner> -F repo=<repo> -F number=<number> \
-  --jq '.data.repository.pullRequest.reviewThreads.nodes[] | {id, url: .comments.nodes[0].url, path, line, original_line: .originalLine, diff_hunk: ((.comments.nodes[0].diffHunk // "") | .[-600:]), is_resolved: .isResolved, resolved_by: .resolvedBy.login, is_outdated: .isOutdated, viewer_can_reply: .viewerCanReply, starter_login: .comments.nodes[0].author.login, starter_is_bot: (.comments.nodes[0].author.__typename == "Bot"), comments: [.comments.nodes[] | {author: .author.login, author_is_bot: (.author.__typename == "Bot"), body: ((.body // "") | .[0:1500]), created_at: .createdAt}]}'
+  --jq '.data.repository.pullRequest.reviewThreads.nodes[] | {id, url: .comments.nodes[0].url, path, line, original_line: .originalLine, diff_hunk: ((.comments.nodes[0].diffHunk // "") | .[-600:]), is_resolved: .isResolved, resolved_by: .resolvedBy.login, is_outdated: .isOutdated, viewer_can_reply: .viewerCanReply, viewer_can_unresolve: .viewerCanUnresolve, starter_login: .comments.nodes[0].author.login, starter_is_bot: (.comments.nodes[0].author.__typename == "Bot"), comments: [.comments.nodes[] | {author: .author.login, author_is_bot: (.author.__typename == "Bot"), body: ((.body // "") | .[0:1500]), created_at: .createdAt}]}'
 ```
 
 and write the results as one JSON array to `<run dir>/threads.json`, adding `starter` to each: `"me"` when `starter_login` is you, `"bot"` when `starter_is_bot` or the login ends in `[bot]`, else `"human"`. If the call fails, say so in the summary and continue without thread verification — never guess at threads.
@@ -93,6 +93,7 @@ Judge pushback on the merits, not on tone or seniority: check the author's claim
 - `human` — the review body's list, except a `still present` or `not fully addressed` issue you'd rate CRITICAL/HIGH, which also gets a reply in the thread (step 6 may have dropped your own copy of that finding as a duplicate, so you're relying on it).
 - `bot` — the body's list only when the bot's point is real **and** still unaddressed; otherwise nothing.
 - `viewer_can_reply: false` — any reply goes to the body's list instead.
+- **Reopen** a thread that is resolved (`is_resolved`) and gets a reply with verdict `not fully addressed`, `still present` or `pushback invalid` — otherwise the reply sits hidden in a collapsed thread. Only when `viewer_can_unresolve`; if not, say in the reply that the thread should be reopened.
 
 **Reply bodies** — short, no severity header; logins in backticks, never `@`-mentions:
 
@@ -106,4 +107,4 @@ Judge pushback on the merits, not on tone or seniority: check the author's claim
 
 A `not fully addressed` reply with a concrete 1–3 line fix may add a ```` ```suggestion ```` block, same bar as step 8.
 
-Write `<run dir>/thread-verdicts.json` (`[{url, starter, starter_login, verdict, delivery: "reply" | "body" | "none", note}]`, every in-scope thread) and `<run dir>/replies.json` (`[{thread_id, url, body}]`, the `reply` ones) with the `Write` tool. Steps 8 and 9 read them.
+Write `<run dir>/thread-verdicts.json` (`[{url, starter, starter_login, verdict, delivery: "reply" | "body" | "none", note}]`, every in-scope thread) and `<run dir>/replies.json` (`[{thread_id, url, body, reopen}]`, the `reply` ones; `reopen: true` per the rule above) with the `Write` tool. Steps 8 and 9 read them.

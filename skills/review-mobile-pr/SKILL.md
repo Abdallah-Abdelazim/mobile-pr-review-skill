@@ -52,7 +52,7 @@ Both print the would-be review — body plus every comment in final comment form
 - **Draft mode:** never use `event: APPROVE`, `event: REQUEST_CHANGES`, or `event: COMMENT` — all three submit immediately. Omit the `event` field entirely; that's what keeps the review pending.
 - **Live mode:** use `event: COMMENT` only. Never `APPROVE` or `REQUEST_CHANGES` — this skill reports findings, it doesn't approve or block a PR, regardless of posting mode.
 - **Never use `gh pr review --comment`, `gh pr comment`, or the issues comments API**, in either mode — everything goes into one review object in step 8, so every comment lands together: the `pulls/<number>/reviews` call, plus, under `--re-review`, thread replies attached to that same review and, in Live mode only, one submit call.
-- **Never resolve a review thread**, in either mode — step 9 lists the ones safe to resolve, and the human does it.
+- **Never resolve a review thread**, in either mode — step 9 lists the ones safe to resolve, and the human does it. The one thread-state change allowed is the reverse: under `--re-review`, a resolved thread that gets a "still wrong" reply is reopened (step 8). That takes effect immediately, even in Draft mode — the one thing a Draft run makes visible before you submit.
 - **The review `body` is the short summary defined in step 8, written only after steps 5–7 have settled the final findings** — never a preview of findings that may still change. In Draft mode it stays private with the rest of the review; in Live mode the API requires it (`body` is mandatory with `event: COMMENT`).
 - **Never build the payload inside the shell** (heredoc, `echo`, string interpolation, `-f body=…`). Comment and reply bodies carry backticks and `$`, which the shell expands — corrupting inline code, and letting PR-derived text execute as a command. Write the JSON with the `Write` tool and pass it via `--input <file>` — `gh api graphql --input` for thread replies too.
 - Comment on diff `+` lines, on a removed `-` line (`side: LEFT`), or on a context line that this diff left stale or orphaned (see "stranded artifacts from incomplete deletions" — caught by the Comment Analyzer and Code-Quality Reviewer passes) — but don't flag pre-existing code the diff never touched.
@@ -325,7 +325,7 @@ Then, in this order:
    }
    ```
 
-   — and post it with `gh api graphql --input <run dir>/reply-<n>.json`. A failed reply never stops the rest, and never falls back to another mechanism: note it for step 9. **Draft mode stops here** — the replies sit in the pending review with the comments. **Live mode, if any reply failed:** don't submit — leave the review pending and tell the user in step 9 which replies are missing, so they can add them and submit it themselves. **Live mode, otherwise:** write `<run dir>/submit.json` (`{"event": "COMMENT", "body": "<summary body>"}`) and `gh api repos/<owner>/<repo>/pulls/<number>/reviews/<id>/events --method POST --input <run dir>/submit.json`. If that fails, the review stays pending: say so in step 9 rather than retrying another way.
+   — and post it with `gh api graphql --input <run dir>/reply-<n>.json`. A failed reply never stops the rest, and never falls back to another mechanism: note it for step 9. For each entry with `reopen: true` whose reply attached, in both modes, write `<run dir>/reopen-<n>.json` (`{"query": "mutation($thread: ID!) { unresolveReviewThread(input: {threadId: $thread}) { thread { isResolved } } }", "variables": {"thread": "<thread_id>"}}`) and post it the same way — never a `resolveReviewThread`. **Draft mode stops here** — the replies sit in the pending review with the comments. **Live mode, if any reply failed:** don't submit — leave the review pending and tell the user in step 9 which replies are missing, so they can add them and submit it themselves. **Live mode, otherwise:** write `<run dir>/submit.json` (`{"event": "COMMENT", "body": "<summary body>"}`) and `gh api repos/<owner>/<repo>/pulls/<number>/reviews/<id>/events --method POST --input <run dir>/submit.json`. If that fails, the review stays pending: say so in step 9 rather than retrying another way.
 
 ### Comment format
 
@@ -416,6 +416,7 @@ Threads — yours:   <n> per verdict (`modes/re-review.md` section 5), zero part
 Threads — others:  <same>
 Threads — bots:    <same>
 Replies posted: <n>[ · failed: <url>, …]
+Reopened (were resolved, still not right): <url>, …   [omit when none; "Would reopen" under --local/--dry-run; visible now even in Draft]
 Safe to resolve: <url>, <url>, …              [still-unresolved threads judged addressed, pushback valid or not an issue]
 New findings: <n>                             [the inline comments above; replies aren't counted here]
 
