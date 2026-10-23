@@ -124,15 +124,18 @@ gh pr view <number> --repo <owner>/<repo> \
   --json number,title,body,baseRefName,headRefName,headRefOid,author,state,files,closingIssuesReferences
 gh pr diff <number> --repo <owner>/<repo> > <run dir>/raw.diff
 gh api repos/<owner>/<repo>/pulls/<number>/comments --paginate \
-  --jq '.[] | {path, line, original_line, start_line, user: .user.login, body: (.body // "")[0:400]}'
+  --jq '.[] | {path, line, original_line, start_line, user: .user.login, body: (.body // "")}' \
+  | tee <run dir>/existing-inline.jsonl | cut -c1-500
 gh api repos/<owner>/<repo>/issues/<number>/comments --paginate \
-  --jq '.[] | {user: .user.login, body: (.body // "")[0:400]}'
+  --jq '.[] | {user: .user.login, body: (.body // "")}' \
+  | tee <run dir>/existing-issue.jsonl | cut -c1-500
 gh api repos/<owner>/<repo>/pulls/<number>/reviews --paginate \
-  --jq '.[] | {id, state, commit_id, user: .user.login, body: (.body // "")[0:400]}'
+  --jq '.[] | {id, state, commit_id, user: .user.login, body: (.body // "")}' \
+  | tee <run dir>/existing-reviews.jsonl | cut -c1-500
 gh api user --jq .login                                          # you, to find your own earlier reviews
 ```
 
-The `--jq` projections matter: raw comment JSON carries user objects, links, reactions and `diff_hunk`, and on a busy PR runs to tens of thousands of tokens of nothing you use. Review bodies are fetched because bots often put their findings there.
+The `--jq` projections matter: raw comment JSON carries user objects, links, reactions and `diff_hunk`, and on a busy PR runs to tens of thousands of tokens of nothing you use. Review bodies are fetched because bots often put their findings there. Each call writes the full text to a file under the run directory and prints only the first 500 characters, so context stays small and step 6 can still read a whole comment (`body` comes last in every projection, so `cut` only trims the end of it).
 
 **Stop if the PR's `state` is `MERGED` or `CLOSED`** — a review there reaches no one and can't change the code — except under `--dry-run`, which runs anyway and shows the state in the header.
 
@@ -156,7 +159,7 @@ If `closingIssuesReferences` names linked issues, fetch the first two: `gh issue
 
 **`--re-review`**: once the checkout above exists (under `--local`, once `pr.diff` exists), read `<skill dir>/modes/re-review.md` and follow it — it fetches the review threads, writes the incremental `since.diff` beside the whole-PR `pr.diff`, and decides quick or escalated; it falls back to a normal full review when the PR has no submitted review.
 
-Keep `headRefOid` (step 8 pins the review to it), the PR author's login (step 7) and the repo root. Keep the projected comments on hand — you'll cross-check your findings against them before posting (step 6).
+Keep `headRefOid` (step 8 pins the review to it), the PR author's login (step 7) and the repo root. Keep the three `existing-*.jsonl` files — you'll cross-check your findings against them before posting (step 6).
 
 Show header (with the resolved posting mode — or `dry run` / `local vs <base>`; append ` · lite` when `--lite` was resolved; the PR line shows ` · MERGED`/` · CLOSED` only on a dry run of such a PR; under `--local` the PR/branch lines become the branch name and `<base> ← HEAD`):
 ```
@@ -242,14 +245,14 @@ Parse every pass's JSON array into one pool (a pass that returned prose instead 
 
 Skip this step under `--local` — there's no PR, so no existing comments. Otherwise, before posting, compare every finding in the aggregated pool from step 5 against the comments fetched in pre-flight (both inline review comments and top-level PR comments) so you don't duplicate feedback that's already on the PR — from an earlier draft pass, another reviewer, or a bot.
 
-For each finding, look for existing comments **on the same file and the same line or line range**, then judge on substance, not exact wording — a comment saying "this will NPE on empty list" and one saying "add a null check before iterating" about the same line are the same finding even though the wording differs:
+For each finding, look for existing comments, then judge on substance, not exact wording — a comment saying "this will NPE on empty list" and one saying "add a null check before iterating" about the same line are the same finding even though the wording differs. Don't stop at the exact line: a neighbouring comment is what the author will have open next to yours, so also count a comment as a candidate when it sits on **the same file within the same function or block**, names **the same symbol** or the same piece of behaviour, or comes from **another file** but is about the same change (a docs comment next to a code finding, a test comment next to a bug). `grep -i` the finding's file name, symbol names and a keyword or two over the three `existing-*.jsonl` files, and read the whole body of each hit before deciding — the 500-character preview from pre-flight can cut a comment off before it gets to its point. Review bodies and top-level comments count too, since bots often put findings there. A thread whose only visible reply is "Addressed in <commit>" is still the original comment's topic.
 
 - **Same finding, already said** — an existing comment already flags the same underlying problem (same root cause, same location), even with a different severity label or phrasing → **drop it, do not post**. Count it toward "duplicates skipped" in the summary.
-- **Close but not the same** — an existing comment touches the same line/area but raises a different angle, misses something yours catches, or only partially overlaps → **still post your finding**, and append a short note referencing the existing comment so the author can reconcile both:
+- **Close but not the same** — an existing comment is about the same area or topic but raises a different angle, misses something yours catches, only partially overlaps, or covers the same code from a different side (it asks about detection, yours is about the flag it sets; it asks for a fix, yours asks for a test) → **still post your finding**, and end it with a short note pointing at the existing comment, so the author and the earlier reviewer can tell the two apart at a glance. Say where it is when it isn't on the same line:
   ```
-  **Related existing comment**: `<author>` already flagged something adjacent here: "<short quote or paraphrase>" — <one clause on how yours differs or adds>.
+  **Related existing comment**: `<author>` already flagged something adjacent here (<file>:<line> if elsewhere): "<short quote or paraphrase>" — <one clause on how yours differs or adds>.
   ```
-  Write the login in backticks, never as `@<login>`: in Live mode an @-mention notifies that person and summons bots (CodeRabbit, Copilot, dependabot) that act on mentions.
+  Write the login in backticks, never as `@<login>`: in Live mode an @-mention notifies that person and summons bots (CodeRabbit, Copilot, dependabot) that act on mentions. Several candidates on one finding get one note naming each, not a note per comment.
 - **No overlap** — post normally, no mention needed.
 
 When in doubt whether two comments describe the same root cause, treat them as merely "close" (post + reference) rather than "same" (drop) — a false duplicate-skip silently loses a finding, while a false "close" match only costs the author one extra sentence of context.
