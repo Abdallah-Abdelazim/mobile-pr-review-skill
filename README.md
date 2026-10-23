@@ -89,11 +89,14 @@ This puts the skill in `.claude/skills/review-mobile-pr/` in the current project
 /review-mobile-pr <number> --lite              # cheaper — only Bug Hunter + Code-Quality Reviewer, skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes  # also apply narrow, safe fixes directly instead of just commenting on them
 /review-mobile-pr <number> --dry-run           # full review, print the would-be review, post nothing
-/review-mobile-pr <number> --since-last        # re-review only the commits pushed since your last review
+/review-mobile-pr <number> --re-review         # after the author's fixes: check every review thread and what changed since the last review
+/review-mobile-pr <number> --re-review --full  # same, as a full multi-pass review of the whole PR (automatic above 400 changed lines)
 /review-mobile-pr --local [<base>]             # self-review the current branch vs <base> before opening a PR; no GitHub calls; commits only — uncommitted changes are ignored
 ```
 
 Flags combine, so `--lite --apply-safe-fixes` works.
+
+`--re-review` is for when the author has pushed fixes and asked you to look again. It goes through every review thread on the PR, yours first, and decides whether each one was addressed. When the author replied instead of changing the code, it checks whether they have a point. It then looks at what changed since the last review, and at anything the first round missed. One agent does all of this inline, with no nits, so it's cheap. If more than 400 lines changed since the last review, it runs a normal full review of the whole PR instead (`--full` forces that, `--quick` forces the cheap path). Your threads get a reply inside the thread (pending, like the rest of the draft). Other reviewers' threads, and bot threads that are right and still open, are listed in the review body. It never resolves threads; the summary lists the ones that are safe to resolve.
 
 It needs the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against the target repo (`gh auth status`).
 
@@ -101,8 +104,8 @@ It needs the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against 
 
 - Draft by default. Unless you ask for Live (`--live`, `--now`, or saying so in your request), every comment goes into a pending GitHub review that only you can see until you open the PR and submit it.
 - Live posts everything at once when the review finishes. It only posts comments, never an approval or a change request, because the skill reports findings and doesn't gate the PR.
-- The skill never uses `gh pr review --comment`, `gh pr comment`, or any other GitHub write call outside the single review it builds. That review has a short summary (finding counts, top risk, findings not tied to a diff line), written after all findings are final and pinned to the exact commit reviewed.
-- If you already have a pending review on the PR, the skill stops before reviewing, since GitHub allows one per user, and asks you to submit or delete it first. If there are no findings, nothing is posted.
+- The skill never uses `gh pr review --comment`, `gh pr comment`, or any other GitHub write call outside the single review it builds. Under `--re-review`, thread replies are attached to that same review, so in Draft mode they stay hidden with it. That review has a short summary (finding counts, top risk, findings not tied to a diff line), written after all findings are final and pinned to the exact commit reviewed.
+- If you already have a pending review on the PR, the skill stops before reviewing, since GitHub allows one per user, and asks you to submit or delete it first. If there are no findings and no thread replies, nothing is posted.
 - Fix mode on someone else's PR still posts the comment for each fix it applies locally, so the author sees it. It also skips build and lint validation there, because that would run the PR's build scripts on your machine. Applied fixes stay uncommitted and unpushed, and the summary shows their full diff.
 - If the API call fails, the skill prints the findings to your terminal. It never falls back to another way of posting, in either mode.
 - The skill edits your repo's files only if you pass `--apply-safe-fixes`. Even then it applies only small, unambiguous fixes of about one line. It never auto-applies a fix that adds a URL or a dependency or touches a build, manifest or config file. Everything else becomes a review comment for you to act on.

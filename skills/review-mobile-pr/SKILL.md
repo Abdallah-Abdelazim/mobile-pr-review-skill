@@ -1,7 +1,7 @@
 ---
 name: review-mobile-pr
 description: Expert Android & iOS PR review. Defaults to saving findings as a PENDING (draft) GitHub review — invisible until manually submitted — but posts them live instead when the user passes --live or asks for it. Use whenever the user asks to review, audit, or give feedback on a pull request touching Android (Kotlin, Jetpack Compose, Gradle), iOS (Swift, SwiftUI, UIKit), or KMP code — including phrases like "review this PR", "check my PR", "draft review", or a GitHub PR URL for a mobile repo — and self-review before a PR exists ("review my branch before I open a PR", "review my changes against main"), which runs as --local. Reviews against up-to-date (2026) platform deprecations, Swift 6 / Compose best practices, code smells (unused code, dead code, poor structure), and software-engineering excellence standards.
-argument-hint: "<PR URL | number> [--live|--now] [--draft] [--lite] [--apply-safe-fixes] [--dry-run] [--since-last] | --local [<base>]"
+argument-hint: "<PR URL | number> [--live|--now] [--draft] [--lite] [--apply-safe-fixes] [--dry-run] [--re-review [--quick|--full]] | --local [<base>] [--re-review <commit> --threads <file>]"
 ---
 
 # Mobile PR Review — Expert Android & iOS Engineer
@@ -51,9 +51,10 @@ Both print the would-be review — body plus every comment in final comment form
 - **Draft is the safe default and stays invisible until the human submits it.** Only switch to Live when the posting mode above actually resolved to Live — never post live "just in case" or because it seemed faster.
 - **Draft mode:** never use `event: APPROVE`, `event: REQUEST_CHANGES`, or `event: COMMENT` — all three submit immediately. Omit the `event` field entirely; that's what keeps the review pending.
 - **Live mode:** use `event: COMMENT` only. Never `APPROVE` or `REQUEST_CHANGES` — this skill reports findings, it doesn't approve or block a PR, regardless of posting mode.
-- **Never use `gh pr review --comment`, `gh pr comment`, or the issues comments API**, in either mode — always the single `pulls/<number>/reviews` call in step 8, so every comment lands together in one review.
+- **Never use `gh pr review --comment`, `gh pr comment`, or the issues comments API**, in either mode — everything goes into one review object in step 8, so every comment lands together: the `pulls/<number>/reviews` call, plus, under `--re-review`, thread replies attached to that same review and, in Live mode only, one submit call.
+- **Never resolve a review thread**, in either mode — step 9 lists the ones safe to resolve, and the human does it.
 - **The review `body` is the short summary defined in step 8, written only after steps 5–7 have settled the final findings** — never a preview of findings that may still change. In Draft mode it stays private with the rest of the review; in Live mode the API requires it (`body` is mandatory with `event: COMMENT`).
-- **Never build the payload inside the shell** (heredoc, `echo`, string interpolation). Comment bodies carry backticks and `$`, which the shell expands — corrupting inline code, and letting PR-derived text execute as a command. Write the JSON with the `Write` tool and pass it via `--input <file>`.
+- **Never build the payload inside the shell** (heredoc, `echo`, string interpolation, `-f body=…`). Comment and reply bodies carry backticks and `$`, which the shell expands — corrupting inline code, and letting PR-derived text execute as a command. Write the JSON with the `Write` tool and pass it via `--input <file>` — `gh api graphql --input` for thread replies too.
 - Comment on diff `+` lines, on a removed `-` line (`side: LEFT`), or on a context line that this diff left stale or orphaned (see "stranded artifacts from incomplete deletions" — caught by the Comment Analyzer and Code-Quality Reviewer passes) — but don't flag pre-existing code the diff never touched.
 - **Fix mode only edits what step 7 explicitly allows, and only the orchestrator does it — never a dispatched review pass.** Without `--apply-safe-fixes`, this skill never uses `Edit`/`Write` on the target repo, in either posting mode. Even with the flag, only a finding that already meets the suggestion-block bar, re-verified against the file's current content immediately before editing, may be touched — never a finding needing a language-block explanation or spanning multiple locations, and never one that adds a URL or dependency or touches a build/manifest/config file. Validation (a build or lint run) executes the PR's build scripts, so it runs only when the user is the PR author or under `--local`.
 - Use the authenticated GitHub account shown in `gh auth status`.
@@ -70,9 +71,14 @@ Invoke with a PR URL or number, optionally choosing Live posting, and optionally
 /review-mobile-pr <number> --lite                # cheaper dispatch — only Bug Hunter + Code-Quality Reviewer; skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes    # also apply narrow, safe fixes directly; everything else still gets posted as a review comment
 /review-mobile-pr <number> --dry-run             # full review, print the would-be review, post nothing
-/review-mobile-pr <number> --since-last          # re-review only the commits pushed since your last review
+/review-mobile-pr <number> --re-review           # after the author's fixes: verify every review thread, sweep what changed since the last review
+/review-mobile-pr <number> --re-review --full    # same, but a full multi-pass review of the whole PR (automatic above 400 changed lines)
 /review-mobile-pr --local [<base>]               # review the current branch vs <base> (default origin's default branch); no GitHub calls
+/review-mobile-pr --local --re-review <commit> --threads <file>   # local re-review against <commit>, threads read from <file>
 ```
+
+`--re-review` verifies the existing review threads and sweeps the changes since the last review. Up to 400 changed lines since then it's the quick path: you do everything inline, zero dispatch, no nits. Above that, or with `--full`, it escalates to a normal review of the whole PR (`--quick` forces the quick path). See step 1.
+
 Flags combine freely — e.g. `--lite --apply-safe-fixes` runs the narrow pass set and still applies any suggestion-grade fix that survives it.
 
 ## Reference files (bundled — always the floor)
@@ -103,7 +109,7 @@ Resolve the posting mode from the invocation (see "Posting mode" above — no qu
 
 Create the run directory first — `mktemp -d` — and keep its literal absolute path (shell state doesn't persist between tool calls). Every file this review produces lives there.
 
-**Under `--local`, skip everything below up to "Annotate the diff" and use local git instead** (no `gh` calls, no auth check, no pending-review check): repo root = `git rev-parse --show-toplevel`; base = the argument, else `git symbolic-ref --short refs/remotes/origin/HEAD`, else `main`; `git diff <base>...HEAD > <run dir>/raw.diff`; PR intent from `git log <base>..HEAD --format='%s%n%b'` and the branch name. Then continue at "Annotate the diff" — the checkout bullets don't apply, since the repo root is already the head.
+**Under `--local`, skip everything below up to "Annotate the diff" and use local git instead** (no `gh` calls, no auth check, no pending-review check): repo root = `git rev-parse --show-toplevel`; base = the argument, else `git symbolic-ref --short refs/remotes/origin/HEAD`, else `main`; `git diff <base>...HEAD > <run dir>/raw.diff`; PR intent from `git log <base>..HEAD --format='%s%n%b'` and the branch name. Then continue at "Annotate the diff" — the checkout bullets don't apply, since the repo root is already the head. `--re-review` under `--local` needs both `<commit>` and `--threads <file>`; stop with a usage error if either is missing.
 
 Otherwise:
 
@@ -148,13 +154,13 @@ Each `+`/context line is prefixed `R<n>` (its new-file line, for `side: RIGHT`),
 
 If `closingIssuesReferences` names linked issues, fetch the first two: `gh issue view <n> --repo <owner>/<repo> --json title,body --jq '.title + "\n" + (.body // "")[0:1500]'` — their acceptance criteria are the best statement of intent there is, and Bug Hunter checks the diff against it.
 
-**`--since-last`** (re-review): once the checkout above exists, read `<skill dir>/modes/since-last.md` and follow it — it swaps `pr.diff` for only the commits since your last review, or falls back to a full review.
+**`--re-review`**: once the checkout above exists (under `--local`, once `pr.diff` exists), read `<skill dir>/modes/re-review.md` and follow it — it fetches the review threads, writes the incremental `since.diff` beside the whole-PR `pr.diff`, and decides quick or escalated; it falls back to a normal full review when the PR has no submitted review.
 
 Keep `headRefOid` (step 8 pins the review to it), the PR author's login (step 7) and the repo root. Keep the projected comments on hand — you'll cross-check your findings against them before posting (step 6).
 
 Show header (with the resolved posting mode — or `dry run` / `local vs <base>`; append ` · lite` when `--lite` was resolved; the PR line shows ` · MERGED`/` · CLOSED` only on a dry run of such a PR; under `--local` the PR/branch lines become the branch name and `<base> ← HEAD`):
 ```
-🔍 Mobile PR Review (draft | live | dry run | local vs <base>)[ · lite][ · since <sha7>]
+🔍 Mobile PR Review (draft | live | dry run | local vs <base>)[ · lite][ · re-review since <sha7> · quick | escalated (<n> lines)]
 📋 PR #<number>: <title>[ · MERGED | CLOSED]
 🔀 <base> ← <head>
 📂 Files changed: <count>
@@ -196,6 +202,8 @@ Decide the conditional dispatches below by grepping `pr.diff` rather than readin
 
 **Exception — tiny diffs.** Every dispatched pass costs roughly 70k tokens before it reads a single diff line (measured in this skill's evals), so a diff that meets **all** of these is reviewed by you directly, with zero dispatch: at most **30 changed lines** (`added + removed` from step 1's stats) in at most **2 files**; no control-flow change (no added/removed `if`/`when`/`switch`/`guard`/loop/`try`/`catch`/early `return`); and no file whose path suggests auth, payment, persistence, crypto or concurrency. Typical: a typo, a string or config value, a comment edit, a trivial rename. Then read `pr.diff`, the touched file(s) and the platform reference file(s) from step 2, and apply the same checks the relevant passes would run. Still produce findings in the `passes/shared.md` JSON schema and severity scale, so steps 5 onward work unchanged. If you notice real logic once you're reading it, stop and dispatch normally — that's exactly the size and risk the parallel passes exist for. This exception takes precedence over `--lite` too.
 
+**Exception — re-review quick path.** Under `--re-review`, verify the threads first (`modes/re-review.md` section 5), inline, on either path. When the mode file chose **quick**, you also review the code yourself with zero dispatch, taking precedence over the tiny-diff exception: read `since.diff` in depth — the touched files, call sites, the platform reference file(s) from step 2 — for anything the changes since the last review broke or left unfinished, a fix included; then read the rest of `pr.diff` (the diff only, opening a file just to verify a candidate) for issues round one missed. Skip that second sweep, with `missed-issue sweep: skipped (PR > 1,500 lines)` in step 9, when the whole PR's `added + removed` exceeds 1,500. Produce findings in the `passes/shared.md` schema and severity scale, every severity but no nits; anchor with `R<n>` numbers, never a `since.diff` `L<n>` (it counts lines in the baseline). A concern an in-scope thread already covers is that thread's verdict, not a new finding. **Escalated** re-reviews dispatch normally over `pr.diff`, the whole PR.
+
 Always dispatch (in full mode and under `--lite`):
 
 | Pass | Focus |
@@ -228,7 +236,7 @@ Parse every pass's JSON array into one pool (a pass that returned prose instead 
 1. **Drop LOW-confidence findings** outright, regardless of severity — a wrong finding costs the author's trust more than a missed one costs coverage.
 2. **Merge duplicates across passes.** Passes overlap by design (Bug Hunter and Code-Quality both see a forgotten `when` branch; Test Analyzer reports the same lines as an untested bug), so the same problem often arrives two to four times. Findings on the same `path` with overlapping lines (or naming the same out-of-diff location) and the same root cause are one finding: keep the highest severity, the clearest `title`/`body`, the best `fix` (a `suggestion` beats `code` beats `none`), and the union of `evidence`; fold in a one-clause fact a merged finding adds that the kept one lacks ("no test covers this path"). Count merges for the summary. Separately, when distinct findings land on the same lines with fixes that overlap or conflict (a one-line `suggestion` plus a refactor of the same statement), make them consistent — one combined fix on the most severe, and a one-line pointer ("see the comment above for the fix") on the others. When unsure whether two findings share a root cause, merge only if one's fix would also resolve the other.
 3. **Re-verify** every CRITICAL/HIGH finding and every MEDIUM-confidence finding before trusting it. Use its `evidence` as the starting point and check it yourself with `grep`/`Read` in the repo root (a call site, a default value, what a function returns, what the repository documents). Drop a finding the code contradicts. Keep one you can't confirm or refute, but reword its `body` conditionally ("If `items` can be empty here, …") and cap it at MEDIUM. Count verified / softened / dropped for the summary.
-4. **Post every surviving finding inline**, nits included — never fold LOW findings into the review body. QUESTION findings keep their own cap of 5 (see `passes/bug-hunter.md`).
+4. **Post every surviving finding inline**, nits included — never fold LOW findings into the review body. QUESTION findings keep their own cap of 5 (see `passes/bug-hunter.md`). The one exception: a quick-path re-review drops every `nit: true` finding — round two is about fixes and real issues.
 
 ### 6. Cross-check against existing PR comments
 
@@ -250,12 +258,12 @@ When in doubt whether two comments describe the same root cause, treat them as m
 
 Skip this step entirely, and go straight to step 8, unless `--apply-safe-fixes` was resolved in Usage. Skip it under `--dry-run` too (a dry run changes nothing). Under `--local`, `HEAD` stands in for `headRefOid` and the user is the author. Also skip it — and say why in the summary — unless the repo root is the user's own checkout at `headRefOid` with a clean `git status --porcelain`: edits in step 1's temporary worktree or clone would be thrown away, and edits on top of uncommitted work would tangle with it.
 
-Otherwise read `<skill dir>/modes/fix.md` now and follow it — it says which fixes may be applied, how, and when to validate.
+Under `--re-review`, only new findings qualify — never a thread verdict or a reply's suggestion block. Otherwise read `<skill dir>/modes/fix.md` now and follow it — it says which fixes may be applied, how, and when to validate.
 
 ### 8. Post findings
 
-- **One review, posted once**: inline comments plus the short summary body below
-- **Nothing survived steps 5–7? Don't POST at all.** An empty Draft review would block the next run (see step 1's pending-review check); skip to step 9 and report "no findings, nothing posted."
+- **One review, posted once**: inline comments plus the short summary body below — and, under `--re-review`, the thread replies from `replies.json`, attached to that same review (sub-step 5)
+- **Nothing survived steps 5–7 and no replies? Don't POST at all.** An empty Draft review would block the next run (see step 1's pending-review check); skip to step 9 and report "no findings, nothing posted." Body-list thread verdicts alone don't justify a review — step 9 prints them.
 
 **Anchoring.** Every inline comment must sit on a line inside the diff, or GitHub rejects the whole review: a `+` or context line uses `"side": "RIGHT"` with its new-file line number; a removed `-` line uses `"side": "LEFT"` with its old-file line number. A finding whose real location is outside the diff — a forgotten call site in an untouched file, a missing test file — goes on the diff line that caused it (e.g. the rename), naming the out-of-diff location(s) in the comment ("Still calls the old name: `Foo.kt:88`, `Bar.kt:12`"). A finding no diff line causes (PR scope, PR description) goes in the body's "Not tied to a diff line" list instead.
 
@@ -269,10 +277,18 @@ Top risk: <one line, `file` named — omit when nothing is must fix>
 - <title> — <one sentence>
 ```
 
+Under `--re-review`, start the body with the thread tally and the body-list verdicts from `thread-verdicts.json` (logins in backticks, never `@`):
+
+```
+**Threads:** <n> addressed · <n> not fully addressed · <n> still present · <n> pushback valid · <n> pushback invalid · <n> author question · <n> not an issue   ← every in-scope thread, yours and others'; omit zero parts
+**Other reviewers' and bot threads:**   ← every `body` delivery, addressed ones included; omit when none
+- <url> — `<login>`: <verdict> — <one clause>
+```
+
 Then, in this order:
 
-1. **Validate every anchor.** Write `<run dir>/anchors.tsv` (one `path<TAB>RIGHT|LEFT<TAB>line` row per comment, with a 4th `<TAB>start_line` column for a multi-line one) with the `Write` tool, then run `<skill dir>/scripts/prepare-diff.sh check <run dir>/pr.diff < <run dir>/anchors.tsv`. It prints `invalid anchor:` for a line that isn't in the diff, and `invalid range:` for a `start_line` that's on the other side, in another hunk, or not before `line` — GitHub rejects all three. Fix each one per the anchoring rules above (move it to a changed line in the same hunk, narrow the range to `line`'s hunk or drop `start_line`, or move it to the body's list) — never post an unvalidated anchor, because one bad line makes GitHub reject the whole review. Under `--since-last`, first move every `LEFT` finding to the body's list (its `L<n>` counts lines in `<last>`, not in the base, so it can't be anchored), then check against `<run dir>/full.diff` — GitHub anchors to the whole PR diff.
-2. **Under `--local` or `--dry-run`, stop here — never POST.** Write `<run dir>/findings.md` with the `Write` tool — the body, then each comment as `### <path>:<line> (<side>)` followed by its body — print it in full, and go to step 9 (Summary).
+1. **Validate every anchor.** Write `<run dir>/anchors.tsv` (one `path<TAB>RIGHT|LEFT<TAB>line` row per comment, with a 4th `<TAB>start_line` column for a multi-line one) with the `Write` tool, then run `<skill dir>/scripts/prepare-diff.sh check <run dir>/pr.diff < <run dir>/anchors.tsv`. It prints `invalid anchor:` for a line that isn't in the diff, and `invalid range:` for a `start_line` that's on the other side, in another hunk, or not before `line` — GitHub rejects all three. Fix each one per the anchoring rules above (move it to a changed line in the same hunk, narrow the range to `line`'s hunk or drop `start_line`, or move it to the body's list) — never post an unvalidated anchor, because one bad line makes GitHub reject the whole review. Under `--re-review` too, `check` runs against `pr.diff` (the whole PR), never `since.diff`.
+2. **Under `--local` or `--dry-run`, stop here — never POST.** Write `<run dir>/findings.md` with the `Write` tool — the body, then each comment as `### <path>:<line> (<side>)` followed by its body, then (under `--re-review`) each reply as `### reply <thread url>` followed by its body — print it in full, and go to step 9 (Summary).
 3. **Build the payload** in `<run dir>/review.json` with the `Write` tool (see the Safety contract — never a heredoc):
 
    ```json
@@ -292,7 +308,7 @@ Then, in this order:
 
    `commit_id` pins every comment to the commit the passes actually reviewed — without it GitHub uses the latest commit, which may have been pushed mid-review. For a multi-line finding, add `"start_line": <first line>` and `"start_side"` (same side as `side`) alongside `line` (the last line of the range).
 
-   **Draft mode: no `event` field.** Omitting `event` is what tells the GitHub API to save the review as pending — invisible until manually submitted. Passing `"event": "PENDING"` returns a 422 error. **Live mode: add `"event": "COMMENT"`** to the top-level object — this posts the review, body and every inline comment, the moment the call succeeds. Never pass `APPROVE` or `REQUEST_CHANGES`; this skill reports findings, it doesn't gate the PR.
+   **Draft mode: no `event` field.** Omitting `event` is what tells the GitHub API to save the review as pending — invisible until manually submitted. Passing `"event": "PENDING"` returns a 422 error. **Live mode: add `"event": "COMMENT"`** to the top-level object — this posts the review, body and every inline comment, the moment the call succeeds — **except when `replies.json` has replies**: then leave `event` out in Live too, since replies can only attach to a pending review, and sub-step 5 submits it. Never pass `APPROVE` or `REQUEST_CHANGES`; this skill reports findings, it doesn't gate the PR. `comments` may be empty when there are only replies.
 4. **Post it:**
 
    ```bash
@@ -300,6 +316,16 @@ Then, in this order:
    ```
 
    If it returns 422 and the error names the offending comment, move that one to the body's list. If it doesn't name one (GitHub often says only "Unprocessable Entity" or "Line could not be resolved"), re-run `check` on `review.json`'s anchors and fix what it reports; if `check` is clean, move every multi-line and every `LEFT` comment to the body's list — those are the anchors GitHub resolves least predictably. Either way, rewrite `review.json` and retry once.
+5. **Under `--re-review` with replies, attach them, then submit if Live.** Keep the POST response's `id` and `node_id`. For each `replies.json` entry, write `<run dir>/reply-<n>.json` with the `Write` tool —
+
+   ```json
+   {
+     "query": "mutation($review: ID!, $thread: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewId: $review, pullRequestReviewThreadId: $thread, body: $body}) { comment { id } } }",
+     "variables": { "review": "<node_id>", "thread": "<thread_id>", "body": "<reply body>" }
+   }
+   ```
+
+   — and post it with `gh api graphql --input <run dir>/reply-<n>.json`. A failed reply never stops the rest, and never falls back to another mechanism: note it for step 9. **Draft mode stops here** — the replies sit in the pending review with the comments. **Live mode, if any reply failed:** don't submit — leave the review pending and tell the user in step 9 which replies are missing, so they can add them and submit it themselves. **Live mode, otherwise:** write `<run dir>/submit.json` (`{"event": "COMMENT", "body": "<summary body>"}`) and `gh api repos/<owner>/<repo>/pulls/<number>/reviews/<id>/events --method POST --input <run dir>/submit.json`. If that fails, the review stays pending: say so in step 9 rather than retrying another way.
 
 ### Comment format
 
@@ -385,6 +411,14 @@ Posted (one line per inline comment, most severe first):
 Not tied to a diff line: <title>, <title>      [omit when none]
 Applied directly: <file>:<line> <title>, …    [fix mode only]
 
+Re-review since <sha7>: quick | escalated (<n> lines)[ · missed-issue sweep: skipped (PR > 1,500 lines)]   [--re-review only, this block]
+Threads — yours:   <n> per verdict (`modes/re-review.md` section 5), zero parts omitted
+Threads — others:  <same>
+Threads — bots:    <same>
+Replies posted: <n>[ · failed: <url>, …]
+Safe to resolve: <url>, <url>, …              [still-unresolved threads judged addressed, pushback valid or not an issue]
+New findings: <n>                             [the inline comments above; replies aren't counted here]
+
 Findings:
   🔴 Critical: <n>
   🟠 High:     <n>
@@ -414,7 +448,7 @@ Review URL: https://github.com/<owner>/<repo>/pull/<number>
 
 The review is pending. Open the PR in GitHub to inspect, edit,       [Draft mode]
 or submit your comments when ready. (Pass --live to post directly next time.)
-💡 You reviewed this PR before (at <sha7>); --since-last reviews only newer commits.   [only without --since-last, when you have an earlier review at another commit]
+💡 You reviewed this PR before (at <sha7>); --re-review checks your threads and only what changed since.   [only without --re-review, when you have an earlier review at another commit]
 The review is live — comments are already visible on the PR.        [Live mode]
 
 💡 For deeper platform coverage next run, install: <platform>: <skill source>, <platform>: <skill source>, ...   [only if step 2's "no skill installed for" list is non-empty]

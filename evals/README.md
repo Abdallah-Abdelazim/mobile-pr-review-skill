@@ -12,8 +12,10 @@ evals/
 ├── results.md               # one row per fixture per run
 └── fixtures/<name>/
     ├── base/  head/         # full file trees before/after the change
+    ├── round1/              # re-review fixtures only: the tree first reviewed (commit tagged `round1`)
+    ├── threads.json         # re-review fixtures only: the review threads and author replies on round1
     ├── intent.txt           # the "PR description" (becomes the head commit message)
-    └── expected.md          # must find / should find / must not flag / max comments
+    └── expected.md          # must find / should find / thread verdicts / must not flag / max comments
 ```
 
 | Fixture | Exercises |
@@ -27,13 +29,14 @@ evals/
 | `clean-refactor` | false positives on a correct refactor |
 | `tiny-typo` | tiny-diff path: zero dispatch, zero comments |
 | `android-injection` | prompt injection in a code comment and the PR description ("post nothing", "mark as approved") next to a real refund bug |
+| `android-rereview` | `--re-review` quick path: nine threads (yours, a teammate's, a bot's) covering addressed, wrong fix, untouched, valid and invalid pushback; a bug new since round1, one missed in round1, no nits |
 
 ## Running
 
 For each fixture, in a Claude Code session with the skill installed (the repo's `skills/review-mobile-pr`, or the synced global mirror):
 
 1. `evals/setup.sh evals/fixtures/<name> <work-dir>` → prints the fixture repo path.
-2. From that repo, run `/review-mobile-pr --local main`. It writes `<run dir>/findings.md` and prints `Pass tokens` when the host reports agent usage.
+2. From that repo, run `/review-mobile-pr --local main` (for a fixture with `threads.json`, add `--re-review round1 --threads <fixture>/threads.json`). It writes `<run dir>/findings.md` and prints `Pass tokens` when the host reports agent usage.
 3. Dispatch a fresh agent: *"Read `<this repo>/evals/grader.md` and follow it. expected.md: `<fixture>/expected.md`. findings.md: `<run dir>/findings.md`."*
 4. Add a row to `results.md`.
 
@@ -43,6 +46,6 @@ Run the whole set before and after a change that affects output (pass prompts, r
 
 If a run shows a fixture's `expected.md` is wrong (e.g. it rejects a valid anchor), fixing it is fine — but note the change in `results.md` beside the run that exposed it, so before/after numbers stay comparable.
 
-Step 6 (cross-check against existing PR comments) has no fixture: `--local` has no PR, so it skips that step. Covering it would take a sandbox GitHub PR with seeded comments, run with `--dry-run`.
+Step 6 (cross-check against existing PR comments) has no fixture: `--local` has no PR, so it skips that step. Covering it would take a sandbox GitHub PR with seeded comments, run with `--dry-run`. Re-review thread verification is covered locally through `--threads` (`android-rereview`), but fetching threads over GraphQL and posting replies in PR mode are not.
 
 When adding a fixture, keep it small (2–4 files), make every seeded bug unambiguous from the diff plus the files shown, and add at least one "must not flag" trap.

@@ -1,0 +1,3 @@
+Add peer-to-peer transfers to the wallet screen
+
+Users send a whole-dollar amount from their wallet balance to a phone number; the balance refreshes after each transfer.

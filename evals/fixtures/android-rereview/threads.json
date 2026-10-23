@@ -1,0 +1,212 @@
+[
+  {
+    "id": "PRRT_fixture101",
+    "url": "https://github.com/example/app/pull/1#discussion_r101",
+    "path": "app/src/main/java/com/example/wallet/TransferViewModel.kt",
+    "line": null,
+    "original_line": 41,
+    "diff_hunk": "@@ -20,4 +25,29 @@ class TransferViewModel(private val repository: WalletRepository) : ViewModel()\n+    fun submit() {\n+        viewModelScope.launch {\n+            val current = _state.value\n+            val amountCents = current.amountInput.toLong() * 100",
+    "is_resolved": true,
+    "resolved_by": "pr-author",
+    "is_outdated": true,
+    "viewer_can_reply": true,
+    "starter": "me",
+    "starter_login": "reviewer-me",
+    "comments": [
+      {
+        "author": "reviewer-me",
+        "author_is_bot": false,
+        "body": "`toLong()` throws `NumberFormatException` for \"12.50\", \"abc\" or an empty field, and nothing catches it here, so a typo crashes the app. Use `toLongOrNull()` and show an error.",
+        "created_at": "2026-10-20T09:00:00Z"
+      }
+    ]
+  },
+  {
+    "id": "PRRT_fixture102",
+    "url": "https://github.com/example/app/pull/1#discussion_r102",
+    "path": "app/src/main/java/com/example/wallet/TransferViewModel.kt",
+    "line": 60,
+    "original_line": 45,
+    "diff_hunk": "@@ -20,4 +25,29 @@ class TransferViewModel(private val repository: WalletRepository) : ViewModel()\n+            _state.value = current.copy(isSubmitting = true)\n+            Log.d(\"Transfer\", \"sending $amountCents to ${current.recipientInput}\")\n+            try {\n+                repository.transfer(current.recipientInput, amountCents)",
+    "is_resolved": false,
+    "resolved_by": null,
+    "is_outdated": false,
+    "viewer_can_reply": true,
+    "starter": "me",
+    "starter_login": "reviewer-me",
+    "comments": [
+      {
+        "author": "reviewer-me",
+        "author_is_bot": false,
+        "body": "Nothing checks the amount against `balanceCents` before calling `transfer()`, so the user can try to send more than they have. Reject it client-side with an error.",
+        "created_at": "2026-10-20T09:00:00Z"
+      }
+    ]
+  },
+  {
+    "id": "PRRT_fixture103",
+    "url": "https://github.com/example/app/pull/1#discussion_r103",
+    "path": "app/src/main/java/com/example/wallet/TransferViewModel.kt",
+    "line": 58,
+    "original_line": 43,
+    "diff_hunk": "@@ -20,4 +25,29 @@ class TransferViewModel(private val repository: WalletRepository) : ViewModel()\n+            val current = _state.value\n+            val amountCents = current.amountInput.toLong() * 100\n+            _state.value = current.copy(isSubmitting = true)\n+            Log.d(\"Transfer\", \"sending $amountCents to ${current.recipientInput}\")",
+    "is_resolved": false,
+    "resolved_by": null,
+    "is_outdated": false,
+    "viewer_can_reply": true,
+    "starter": "me",
+    "starter_login": "reviewer-me",
+    "comments": [
+      {
+        "author": "reviewer-me",
+        "author_is_bot": false,
+        "body": "This logs the recipient's phone number (PII) and the amount on every transfer, in release builds too. Drop it or strip the phone number.",
+        "created_at": "2026-10-20T09:00:00Z"
+      }
+    ]
+  },
+  {
+    "id": "PRRT_fixture104",
+    "url": "https://github.com/example/app/pull/1#discussion_r104",
+    "path": "app/src/main/java/com/example/wallet/TransferViewModel.kt",
+    "line": 62,
+    "original_line": 47,
+    "diff_hunk": "@@ -20,4 +25,29 @@ class TransferViewModel(private val repository: WalletRepository) : ViewModel()\n+            try {\n+                repository.transfer(current.recipientInput, amountCents)\n+                _state.value = _state.value.copy(isSubmitting = false, sent = true)\n+                refreshBalance()",
+    "is_resolved": false,
+    "resolved_by": null,
+    "is_outdated": false,
+    "viewer_can_reply": true,
+    "starter": "me",
+    "starter_login": "reviewer-me",
+    "comments": [
+      {
+        "author": "reviewer-me",
+        "author_is_bot": false,
+        "body": "Is a second network call needed? Use what `transfer()` returns to update the balance instead of calling `refreshBalance()`.",
+        "created_at": "2026-10-20T09:00:00Z"
+      },
+      {
+        "author": "pr-author",
+        "author_is_bot": false,
+        "body": "`transfer()` returns a `TransferId`, not the balance (see its KDoc in WalletRepository.kt), so there's nothing to update from. The refresh is needed.",
+        "created_at": "2026-10-21T14:00:00Z"
+      }
+    ]
+  },
+  {
+    "id": "PRRT_fixture105",
+    "url": "https://github.com/example/app/pull/1#discussion_r105",
+    "path": "app/src/main/java/com/example/wallet/TransferViewModel.kt",
+    "line": 64,
+    "original_line": 49,
+    "diff_hunk": "@@ -20,4 +25,29 @@ class TransferViewModel(private val repository: WalletRepository) : ViewModel()\n+                _state.value = _state.value.copy(isSubmitting = false, sent = true)\n+                refreshBalance()\n+            } catch (e: Exception) {\n+                Log.e(\"Transfer\", \"transfer failed\", e)",
+    "is_resolved": false,
+    "resolved_by": null,
+    "is_outdated": false,
+    "viewer_can_reply": true,
+    "starter": "me",
+    "starter_login": "reviewer-me",
+    "comments": [
+      {
+        "author": "reviewer-me",
+        "author_is_bot": false,
+        "body": "When `transfer()` fails, `isSubmitting` stays `true` forever, so the Send button never re-enables. Reset it in the catch (or a `finally`) and surface the failure.",
+        "created_at": "2026-10-20T09:00:00Z"
+      },
+      {
+        "author": "pr-author",
+        "author_is_bot": false,
+        "body": "Not an issue: `transfer()` reports failures through its return value and never throws, so this catch never runs.",
+        "created_at": "2026-10-21T14:00:00Z"
+      }
+    ]
+  },
+  {
+    "id": "PRRT_fixture106",
+    "url": "https://github.com/example/app/pull/1#discussion_r106",
+    "path": "app/src/main/java/com/example/wallet/TransferViewModel.kt",
+    "line": 44,
+    "original_line": 38,
+    "diff_hunk": "@@ -20,4 +25,29 @@ class TransferViewModel(private val repository: WalletRepository) : ViewModel()\n+    }\n+\n+    /** The amount field takes whole dollars. */\n+    fun submit() {",
+    "is_resolved": false,
+    "resolved_by": null,
+    "is_outdated": false,
+    "viewer_can_reply": true,
+    "starter": "human",
+    "starter_login": "teammate",
+    "comments": [
+      {
+        "author": "teammate",
+        "author_is_bot": false,
+        "body": "Critical: nothing guards against a double tap. Two taps launch two coroutines before `isSubmitting` is set, and the user is charged twice. Return early when `isSubmitting` is already true (set it before launching).",
+        "created_at": "2026-10-20T09:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "PRRT_fixture107",
+    "url": "https://github.com/example/app/pull/1#discussion_r107",
+    "path": "app/src/main/java/com/example/wallet/TransferViewModel.kt",
+    "line": 20,
+    "original_line": 19,
+    "diff_hunk": "@@ -9,6 +10,10 @@ import kotlinx.coroutines.launch\n+    val sent: Boolean = false,\n )\n \n class TransferViewModel(private val repository: WalletRepository) : ViewModel() {",
+    "is_resolved": false,
+    "resolved_by": null,
+    "is_outdated": false,
+    "viewer_can_reply": true,
+    "starter": "human",
+    "starter_login": "teammate",
+    "comments": [
+      {
+        "author": "teammate",
+        "author_is_bot": false,
+        "body": "Nothing loads the balance when the screen opens, so it shows $0 until the first transfer. Call `refreshBalance()` from `init`.",
+        "created_at": "2026-10-20T09:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "PRRT_fixture108",
+    "url": "https://github.com/example/app/pull/1#discussion_r108",
+    "path": "app/src/main/java/com/example/wallet/TransferViewModel.kt",
+    "line": null,
+    "original_line": 41,
+    "diff_hunk": "@@ -20,4 +25,29 @@ class TransferViewModel(private val repository: WalletRepository) : ViewModel()\n+    fun submit() {\n+        viewModelScope.launch {\n+            val current = _state.value\n+            val amountCents = current.amountInput.toLong() * 100",
+    "is_resolved": false,
+    "resolved_by": null,
+    "is_outdated": true,
+    "viewer_can_reply": true,
+    "starter": "bot",
+    "starter_login": "coderabbitai[bot]",
+    "comments": [
+      {
+        "author": "coderabbitai[bot]",
+        "author_is_bot": true,
+        "body": "⚠️ Potential issue: zero and negative amounts are accepted and passed to `transfer()`, whose KDoc requires `amountCents > 0`. Validate `amountCents > 0` before sending.",
+        "created_at": "2026-10-20T09:30:00Z"
+      }
+    ]
+  },
+  {
+    "id": "PRRT_fixture109",
+    "url": "https://github.com/example/app/pull/1#discussion_r109",
+    "path": "app/src/main/java/com/example/wallet/TransferViewModel.kt",
+    "line": 45,
+    "original_line": 39,
+    "diff_hunk": "@@ -20,4 +25,29 @@ class TransferViewModel(private val repository: WalletRepository) : ViewModel()\n+\n+    /** The amount field takes whole dollars. */\n+    fun submit() {\n+        viewModelScope.launch {",
+    "is_resolved": false,
+    "resolved_by": null,
+    "is_outdated": false,
+    "viewer_can_reply": true,
+    "starter": "bot",
+    "starter_login": "coderabbitai[bot]",
+    "comments": [
+      {
+        "author": "coderabbitai[bot]",
+        "author_is_bot": true,
+        "body": "🛠️ Refactor suggestion: run the network call on `Dispatchers.IO` with `withContext(Dispatchers.IO)` to avoid blocking the main thread.",
+        "created_at": "2026-10-20T09:30:00Z"
+      }
+    ]
+  }
+]
