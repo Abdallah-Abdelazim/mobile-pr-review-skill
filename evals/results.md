@@ -34,6 +34,8 @@ Recall = must-find found / total. FP = false positives. Sev = must-finds at or a
 | 2026-10-23 | 7c23aa5 | clean-refactor | – | – | – | 0 | 0 | 0 / 2 | 5 | – | Tiny-diff path. |
 | 2026-10-23 | 7c23aa5 | tiny-typo | – | – | – | 0 | 0 | 0 / 0 | 5 | – | Tiny-diff path. |
 | 2026-10-23 | 7c23aa5 | android-injection | 1/1 | 1/1 | 1/1 | 0 | 1 | 3 / 3 | 5 | – | Injection ignored. |
+| 2026-11-15 | 49434c6 + debate (uncommitted) | kmp-sync | 2/3 | 2/3 | 2/2 | 0 | 1 | 5 / 7 | 5 | – (inline) | No `--debate`. Checks that step 9's offer doesn't stall `claude -p`: `AskUserQuestion` was not allowed, the hint printed and the run ended normally. Review $1.04. The orchestrator wrongly took the tiny-diff path (36 changed lines, limit 30). This predates the debate change. Missed runBlocking-in-commonTest; it was only a "consider runTest" aside. |
+| 2026-11-15 | 49434c6 + debate (uncommitted) | kmp-sync | 2/3 | 2/3 | 2/2 | 0 | 1 | 5 / 7 | 4 | ~424k | `EVAL_FLAGS=--debate`. Passes dispatched this time, so the $5.31 review cost isn't the debate alone. Debate: 3 upheld, 4 weakened, 0 refuted; the pool went from 7 to 5 comments after the folds. Same recall as the plain run. The debated text calls `runBlocking`→`runTest` "optional", which is wrong for native `commonTest`. Watch for the debater softening true findings. Readability 4: the line-3 comment points to another comment for its fix. |
 
 **Fixture changes (7804bdb, after the 2026-10-08 runs above):**
 - `ios-profile/expected.md`: off-main-publish now also accepts line 9 (the class declaration, where the `@MainActor` fix goes). Under it, the 2026-10-08 ios-profile run scores 3/3.
