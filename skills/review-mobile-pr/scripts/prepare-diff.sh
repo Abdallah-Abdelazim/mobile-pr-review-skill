@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage:
-#   prepare-diff.sh annotate < raw.diff > pr.diff   # prints "files=N added=X removed=Y renamed=Z" to stderr
+#   prepare-diff.sh annotate < raw.diff > pr.diff   # prints "files=N added=X removed=Y renamed=Z tiny_size=yes|no" to stderr (yes: ≤30 changed lines in ≤2 files)
 #   prepare-diff.sh check pr.diff < anchors.tsv     # anchors: path<TAB>RIGHT|LEFT<TAB>line[<TAB>start_line]; prints invalid ones, exit 1 if any
 #   prepare-diff.sh slice pr.diff < paths.txt > shard.diff   # keeps only the sections for the listed paths (one per line)
 set -euo pipefail
@@ -44,7 +44,7 @@ annotate() {
     inhunk && /^\+/ { fa++; added++;   if (!skip) printf "R%d %s\n", new, $0; new++; next }
     inhunk && /^-/  { fr++; removed++; if (!skip) printf "L%d %s\n", old, $0; old++; next }
     inhunk && /^ /  { if (!skip) printf "R%d %s\n", new, $0; new++; old++; next }
-    END { flush(); printf "files=%d added=%d removed=%d renamed=%d\n", files, added, removed, renamed > "/dev/stderr" }
+    END { flush(); printf "files=%d added=%d removed=%d renamed=%d tiny_size=%s\n", files, added, removed, renamed, (added + removed <= 30 && files <= 2) ? "yes" : "no" > "/dev/stderr" }
   '
 }
 

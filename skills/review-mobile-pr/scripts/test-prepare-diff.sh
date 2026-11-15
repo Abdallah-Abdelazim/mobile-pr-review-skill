@@ -60,7 +60,7 @@ grep -qx '=== my dir/A.kt' "$tmp/pr.diff"            # tab after path stripped
 grep -qx 'R3 +c' "$tmp/pr.diff"
 grep -qx '=== new/B.kt (renamed from old/B.kt, no content change)' "$tmp/pr.diff"   # pure rename kept
 grep -qxF '=== caf\303\251.kt' "$tmp/pr.diff"       # git-quoted path unquoted
-grep -qx 'files=6 added=6 removed=3 renamed=1' "$tmp/stats"
+grep -qx 'files=6 added=6 removed=3 renamed=1 tiny_size=no' "$tmp/stats"
 
 printf 'my dir/A.kt\tRIGHT\t3\napp/Foo.java\tLEFT\t2\napp/Foo.java\tRIGHT\t2\n' | ./prepare-diff.sh check "$tmp/pr.diff"
 ! printf 'app/Foo.java\tRIGHT\t9\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null
