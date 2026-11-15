@@ -5,7 +5,8 @@
 # Writes <out>/<fixture>/{review.json,findings.md,grade.json} and <out>/summary.tsv; prints <out>.
 # Spends real tokens: ~200–400k per fixture that dispatches passes (see results.md). Needs the skill installed.
 # Env: EVAL_OUT (output dir), EVAL_MODEL (orchestrator model; recorded in summary.tsv), EVAL_BUDGET_USD
-#      (cap per claude call, default 15), EVAL_CLAUDE_ARGS (extra flags, e.g. --bare), CLAUDE (binary).
+#      (cap per claude call, default 15), EVAL_CLAUDE_ARGS (extra flags, e.g. --bare),
+#      EVAL_FLAGS (extra skill flags appended to the prompt, e.g. --debate), CLAUDE (binary).
 set -euo pipefail
 evals=$(cd "$(dirname "$0")" && pwd)
 out=${EVAL_OUT:-$(mktemp -d)}
@@ -26,6 +27,7 @@ for name in "$@"; do
   repo=$(bash "$evals/setup.sh" "$evals/fixtures/$name" "$dir/work")
   prompt='/review-mobile-pr --local main'
   [ -f "$evals/fixtures/$name/threads.json" ] && prompt+=" --re-review round1 --threads $evals/fixtures/$name/threads.json"
+  prompt+="${EVAL_FLAGS:+ $EVAL_FLAGS}"
   touch "$dir/start"
   # The skill's run dir comes from mktemp -d, so a per-fixture TMPDIR makes its findings.md unambiguous.
   (cd "$repo" && TMPDIR="$dir/tmp" "$claude" -p "$prompt" "${args[@]}" --allowedTools "$review_tools") \

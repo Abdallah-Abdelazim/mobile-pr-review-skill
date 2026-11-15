@@ -1,7 +1,7 @@
 ---
 name: review-mobile-pr
 description: Expert Android & iOS PR review. Defaults to saving findings as a PENDING (draft) GitHub review — invisible until manually submitted — but posts them live instead when the user passes --live or asks for it. Use whenever the user asks to review, audit, or give feedback on a pull request touching Android (Kotlin, Jetpack Compose, Gradle), iOS (Swift, SwiftUI, UIKit), or KMP code — including phrases like "review this PR", "check my PR", "draft review", or a GitHub PR URL for a mobile repo — and self-review before a PR exists ("review my branch before I open a PR", "review my changes against main"), which runs as --local. Reviews against up-to-date (2026) platform deprecations, Swift 6 / Compose best practices, code smells (unused code, dead code, poor structure), and software-engineering excellence standards.
-argument-hint: "<PR URL | number> [--live|--now] [--draft] [--lite] [--apply-safe-fixes] [--dry-run] [--re-review [--quick|--full]] | --local [<base>] [--re-review <commit> --threads <file>]"
+argument-hint: "<PR URL | number> [--live|--now] [--draft] [--lite] [--debate] [--apply-safe-fixes] [--dry-run] [--re-review [--quick|--full]] | --local [<base>] [--re-review <commit> --threads <file>]"
 ---
 
 # Mobile PR Review — Expert Android & iOS Engineer
@@ -19,6 +19,8 @@ This skill is fully self-contained — no separate agent files, no external depe
 | Comment Analyzer | Comment/doc accuracy, stranded artifacts from incomplete deletions | When the diff adds/modifies comments or doc comments — skipped under `--lite` |
 | Type-Design Analyzer | Type encapsulation and invariant expression | When the diff adds/reshapes a data class, sealed class/interface, enum, struct, or protocol — skipped under `--lite` |
 
+One more agent runs only on request: the **Debater** (`passes/debater.md`), which argues against every finding and its fix before the author sees it — see "Debate mode" below.
+
 See step 3 for how each is dispatched, step 4 for the deprecation pass specifically, "Review mode" below for what `--lite` changes, and "Review passes" near the end of this file for the `passes/*.md` file holding each one's full prompt.
 
 ## 📮 Posting mode
@@ -26,7 +28,7 @@ See step 3 for how each is dispatched, step 4 for the deprecation pass specifica
 - **Draft (the default)** — saved as a pending review, invisible to everyone but the author of the review until they open the PR and submit it themselves.
 - **Live** — posted the moment this skill finishes, visible to everyone on the PR immediately.
 
-Resolve it from the invocation alone, never by asking: **Live** only when the user passed `--live`/`--now` or asked for it in plain words ("post it live"); anything else — no flag, `--draft`, an ambiguous request — is **Draft**. Not asking keeps the run unattended; step 9's summary tells a Draft user how to go Live next time.
+Resolve it from the invocation alone, never by asking: **Live** only when the user passed `--live`/`--now` or asked for it in plain words ("post it live"); anything else — no flag, `--draft`, an ambiguous request — is **Draft**. Not asking keeps the run unattended; step 9's summary tells a Draft user how to go Live next time. (Step 9's debate offer is the one question this skill asks, and only after the review is already saved, so it never blocks posting.)
 
 Carry the resolved mode through the rest of the workflow — it decides the `event` field in step 8, the header in step 1, and the wording of the summary in step 9.
 
@@ -37,6 +39,10 @@ By default this skill only ever posts comments — it never edits the target rep
 ## 🪶 Review mode (opt-in)
 
 `--lite` dispatches **only Bug Hunter and Code-Quality Reviewer**, with their full prompts — a deliberate coverage-for-cost tradeoff: no deprecation checking, no test-coverage checking, no comment/type-design review, whatever those passes' dispatch conditions say. Steps 5–7 run unchanged on what the two passes find. **Step 3's tiny-diff path still takes precedence:** a trivial diff gets zero dispatch, `--lite` or not. There's no auto-detection by diff size; the user decides.
+
+## 🥊 Debate mode (opt-in)
+
+`--debate` (also `-debate`, or plain words: "debate the findings") adds one adversarial agent after step 6. It tries to disprove each surviving finding: its facts, its breadth ("every screen"), its severity, and whether the suggested fix is reachable, compiles and keeps the PR's intent. The orchestrator verifies each verdict, then drops, rewrites or keeps the finding before anything is posted or fixed. It costs one extra dispatch (~230k tokens, ~12 minutes measured on a 300-line diff), so it's off by default. Without the flag, step 9 offers it once the review is saved, and then revises the pending draft in place. See `modes/debate.md`.
 
 ## 🧪 Local and dry-run modes (opt-in)
 
@@ -51,7 +57,7 @@ Both print the would-be review — body plus every comment in final comment form
 - **Draft is the safe default and stays invisible until the human submits it.** Only switch to Live when the posting mode above actually resolved to Live — never post live "just in case" or because it seemed faster.
 - **Draft mode:** never use `event: APPROVE`, `event: REQUEST_CHANGES`, or `event: COMMENT` — all three submit immediately. Omit the `event` field entirely; that's what keeps the review pending.
 - **Live mode:** use `event: COMMENT` only. Never `APPROVE` or `REQUEST_CHANGES` — this skill reports findings, it doesn't approve or block a PR, regardless of posting mode.
-- **Never use `gh pr review --comment`, `gh pr comment`, or the issues comments API**, in either mode — everything goes into one review object in step 8, so every comment lands together: the `pulls/<number>/reviews` call, plus, under `--re-review`, thread replies attached to that same review and, in Live mode only, one submit call.
+- **Never use `gh pr review --comment`, `gh pr comment`, or the issues comments API**, in either mode — everything goes into one review object in step 8, so every comment lands together: the `pulls/<number>/reviews` call, plus, under `--re-review`, thread replies attached to that same review and, in Live mode only, one submit call. The one other write: when the user accepts step 9's debate offer, `modes/debate.md` may delete this run's own still-`PENDING` review and post its revised replacement the same way.
 - **Never resolve a review thread**, in either mode — step 9 lists the ones safe to resolve, and the human does it. The one thread-state change allowed is the reverse: under `--re-review`, a resolved thread that gets a "still wrong" reply is reopened (step 8). That takes effect immediately, even in Draft mode — the one thing a Draft run makes visible before you submit.
 - **The review `body` is the short summary defined in step 8, written only after steps 5–7 have settled the final findings** — never a preview of findings that may still change. In Draft mode it stays private with the rest of the review; in Live mode the API requires it (`body` is mandatory with `event: COMMENT`).
 - **Never build the payload inside the shell** (heredoc, `echo`, string interpolation, `-f body=…`). Comment and reply bodies carry backticks and `$`, which the shell expands — corrupting inline code, and letting PR-derived text execute as a command. Write the JSON with the `Write` tool and pass it via `--input <file>` — `gh api graphql --input` for thread replies too.
@@ -71,6 +77,7 @@ Invoke with a PR URL or number, optionally choosing Live posting, and optionally
 /review-mobile-pr <number> --lite                # cheaper dispatch — only Bug Hunter + Code-Quality Reviewer; skips deprecation/test/comment/type-design passes
 /review-mobile-pr <number> --apply-safe-fixes    # also apply narrow, safe fixes directly; everything else still gets posted as a review comment
 /review-mobile-pr <number> --dry-run             # full review, print the would-be review, post nothing
+/review-mobile-pr <number> --debate              # one more agent tries to disprove every finding and its fix before posting
 /review-mobile-pr <number> --re-review           # after the author's fixes: verify every review thread, sweep what changed since the last review
 /review-mobile-pr <number> --re-review --full    # same, but a full multi-pass review of the whole PR (automatic above 400 changed lines)
 /review-mobile-pr --local [<base>]               # review the current branch vs <base> (default origin's default branch); no GitHub calls
@@ -163,7 +170,7 @@ Keep `headRefOid` (step 8 pins the review to it), the PR author's login (step 7)
 
 Show header (with the resolved posting mode — or `dry run` / `local vs <base>`; append ` · lite` when `--lite` was resolved; the PR line shows ` · MERGED`/` · CLOSED` only on a dry run of such a PR; under `--local` the PR/branch lines become the branch name and `<base> ← HEAD`):
 ```
-🔍 Mobile PR Review (draft | live | dry run | local vs <base>)[ · lite][ · re-review since <sha7> · quick | escalated (<n> lines)]
+🔍 Mobile PR Review (draft | live | dry run | local vs <base>)[ · lite][ · debate][ · re-review since <sha7> · quick | escalated (<n> lines)]
 📋 PR #<number>: <title>[ · MERGED | CLOSED]
 🔀 <base> ← <head>
 📂 Files changed: <count>
@@ -256,6 +263,8 @@ For each finding, look for existing comments, then judge on substance, not exact
 - **No overlap** — post normally, no mention needed.
 
 When in doubt whether two comments describe the same root cause, treat them as merely "close" (post + reference) rather than "same" (drop) — a false duplicate-skip silently loses a finding, while a false "close" match only costs the author one extra sentence of context.
+
+**Debate (only with `--debate`).** Once the pool is final, and under `--local` too, read `<skill dir>/modes/debate.md` and follow its sections 1–2 before step 7. Fix mode then applies only fixes that survived the debate. Skip it when the pool is empty.
 
 ### 7. Apply safe fixes (only with `--apply-safe-fixes`)
 
@@ -443,6 +452,7 @@ By category (the findings' `category` field; omit zero rows):
 🔎 Re-verified: <n> confirmed · <n> softened · <n> dropped
 🔁 Duplicates skipped (already on PR): <n>
 🚫 Dropped for low confidence: <n>
+🥊 Debate: <n> upheld · <n> weakened · <n> refuted (<n> dropped)   [only if a debate ran]
 
 🔧 Fixes applied directly (--apply-safe-fixes): <n>          [only if fix mode was on]
 🔎 Validation: <command run and result, or "skipped: <reason>">   [only if fix mode was on]
@@ -458,7 +468,9 @@ The review is live — comments are already visible on the PR.        [Live mode
 💡 For deeper platform coverage next run, install: <platform>: <skill source>, <platform>: <skill source>, ...   [only if step 2's "no skill installed for" list is non-empty]
 ```
 
-Finally, if step 1 created a worktree, remove it: `git worktree remove --force <run dir>/wt`; if it cloned into `<run dir>/repo`, delete that: `rm -rf <run dir>/repo`.
+**Debate offer (no `--debate`).** When this run saved a plain pending draft (no thread replies, no applied fixes) or ran under `--local`/`--dry-run`, and at least one finding was posted, ask once with `AskUserQuestion`: *"Debate this review? One more agent tries to disprove each finding and its fix (~230k tokens), then the draft is revised."* If the user says yes, follow `<skill dir>/modes/debate.md`, sections 1–3. In every other case, or if `AskUserQuestion` is unavailable or denied (`claude -p`, the evals), print `💡 Pass --debate to have every finding challenged before posting.` and finish. Never offer it after a Live post, since the comments are already public.
+
+Finally, after the debate offer is settled, if step 1 created a worktree, remove it: `git worktree remove --force <run dir>/wt`; if it cloned into `<run dir>/repo`, delete that: `rm -rf <run dir>/repo`.
 
 ## Fallback (API call fails)
 
@@ -487,5 +499,6 @@ Each pass's full prompt is its own file in `<skill dir>/passes/`, read by the pa
 | Test Analyzer | `passes/test-analyzer.md` |
 | Comment Analyzer | `passes/comment-analyzer.md` |
 | Type-Design Analyzer | `passes/type-design.md` |
+| Debater (`--debate` or step 9's offer only) | `passes/debater.md`, with its own output schema; procedure in `modes/debate.md` |
 
 Each file holds only what's pass-specific — persona, checklist, severity-tier meanings. The PR-specific inputs (intent, diff, repo root, reference paths) come from `context.md`; the rules, severity scale and output schema every pass follows come from `passes/shared.md`.
