@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Abdallah-Abdelazim/mobile-pr-review-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/Abdallah-Abdelazim/mobile-pr-review-skill/actions/workflows/ci.yml)
 
-An [agent skill](https://github.com/vercel-labs/skills) that reviews Android, iOS and Kotlin Multiplatform (KMP) pull requests. By default it saves every finding as a pending (draft) GitHub review, which nobody else sees until you submit it. Pass `--live`, or ask for it, to post immediately instead. It runs without stopping to ask questions.
+An [agent skill](https://github.com/vercel-labs/skills) that reviews Android, iOS and Kotlin Multiplatform (KMP) pull requests. By default it saves every finding as a pending (draft) GitHub review, which nobody else sees until you submit it. Pass `--live`, or ask for it, to post immediately instead. It runs without stopping to ask questions. The one exception comes after a draft is saved: it offers to debate the review.
 
 It reviews Kotlin, Jetpack Compose and Gradle; Swift, SwiftUI and UIKit; and KMP code, including shared Compose Multiplatform UI. It checks for platform APIs deprecated as of 2026, Swift 6 and Compose best practices, code smells, and general engineering standards.
 
@@ -21,6 +21,8 @@ It has 6 review passes. Each is a prompt file in the skill (`passes/*.md`), and 
 | Comment Analyzer | Whether comments and docs are accurate, and comments left behind by incomplete deletions |
 | Type-Design Analyzer | Encapsulation and invariants in types (Kotlin sealed and data classes, Swift structs, enums and protocols) |
 
+A seventh agent, the Debater (`passes/debater.md`), runs only with `--debate` or when you accept the debate offer. It finds nothing new; it argues against the findings the passes produced (see `--debate` below).
+
 Bug Hunter and Code-Quality Reviewer read the platform checklist that matches the diff: `android.md`, `ios.md` or `kmp.md`. `kmp.md` has a Compose Multiplatform section covering shared Composables, `expect`/`actual` UI, CMP resources, cross-platform navigation and embedding through `ComposeUIViewController` on iOS. Both passes also read `engineering-excellence.md`, a cross-platform checklist for code smells, dead code, SOLID, naming, PR hygiene and docs. The Deprecation Scanner reads its own tables in `android-deprecations.md` and `ios-deprecations.md`.
 
 The skill has no separate agent files. The pass prompts, the mode procedures (`modes/*.md`, read only when their flag is set) and the platform references all ship in the one skill directory, so a review needs only the GitHub CLI, `git`, and the `bash` and `awk` that come with macOS and Linux.
@@ -29,14 +31,15 @@ The skill has no separate agent files. The pass prompts, the mode procedures (`m
 
 1. **Pre-flight.** The skill fetches the PR, its linked issues and its existing comments, and stops if the PR is merged or closed. It checks out the PR head in a temporary worktree, or in a temporary blobless clone if you have no local clone, and never switches your own branch. It writes the diff to a file with every line already numbered, so comments copy their line numbers instead of guessing them.
 2. **Dispatch.** Only the passes that have something to check run, in parallel. Each pass reads the diff and its own prompt from files, so nothing large is pasted into prompts.
-3. **Aggregate.** When several passes report the same problem, the skill merges them into one finding. It re-checks every Critical and High finding, and every uncertain one, against the code, and drops whatever doesn't hold up. Every surviving finding, nits included, is posted inline at its line, not in the review summary.
-4. **Post.** The skill checks every comment's line against the diff, then posts one review with the inline comments and a short summary, pinned to the commit it reviewed.
+3. **Aggregate.** When several passes report the same problem, the skill merges them into one finding. It re-checks every Critical and High finding, and every uncertain one, against the code, and drops whatever doesn't hold up. A finding it can't confirm is reworded conditionally and capped at Medium, never pushed lower. Every surviving finding, nits included, is posted inline at its line, not in the review summary.
+4. **Debate (only with `--debate`).** One more agent tries to disprove each finding and its fix, and the skill checks every verdict before rewriting or dropping a finding.
+5. **Post.** The skill checks every comment's line against the diff, then posts one review with the inline comments and a short summary, pinned to the commit it reviewed.
 
 Each pass costs roughly 70k tokens before it reads the diff, so the number of passes drives cost far more than the size of the diff. That's why passes only run when they have something to check: Test Analyzer when code or tests changed, Deprecation Scanner when an added line matches a known deprecated symbol, and the Comment and Type-Design Analyzers when comments or types changed.
 
-There are three cost tiers. A tiny diff (at most 30 changed lines in at most 2 files, no control-flow change, nothing on an auth, payment, persistence or concurrency path) is reviewed directly with no passes. `--lite` runs 2 passes, Bug Hunter and Code-Quality Reviewer. Everything else gets the full dispatch. Diffs above about 1,500 changed lines split Bug Hunter into 2 or 3 shards.
+There are three cost tiers. A tiny diff (at most 30 changed lines in at most 2 files, no control-flow change, nothing on an auth, payment, persistence or concurrency path) is reviewed directly with no passes. The diff script prints `tiny_size=yes|no` for the size part, so that limit is never judged by eye. `--lite` runs 2 passes, Bug Hunter and Code-Quality Reviewer. Everything else gets the full dispatch. Diffs above about 1,500 changed lines split Bug Hunter into 2 or 3 shards.
 
-Bug Hunter and Code-Quality Reviewer find most of the issues, so they run on Opus. The four narrower passes run on Sonnet, and all six use high effort. On a host whose agent tool can't pick a model, passes run on the host's default.
+Bug Hunter and Code-Quality Reviewer find most of the issues, so they run on Opus. The four narrower passes run on Sonnet, and all six use high effort. The opt-in Debater also runs on Opus. On a host whose agent tool can't pick a model, passes run on the host's default.
 
 ## What a comment looks like
 
@@ -118,7 +121,7 @@ It needs the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against 
 
 ## Evals
 
-`evals/` has 9 fixtures with seeded bugs (Android, iOS, KMP, a clean refactor, a tiny diff and a prompt injection), a setup script, a grader prompt, and `evals/run.sh`. The script runs the review and the grader on each fixture with `claude -p`, capping what each call can spend. Together they measure recall, false positives, comment count and token cost before and after a change. Results are in [`evals/results.md`](./evals/results.md), and [`evals/README.md`](./evals/README.md) explains how to run them. The evals don't ship with the skill.
+`evals/` has 10 fixtures with seeded bugs (Android, iOS, KMP, a clean refactor, a tiny diff, a prompt injection and a `--re-review` round), a setup script, a grader prompt, and `evals/run.sh`. The script runs the review and the grader on each fixture with `claude -p`, capping what each call can spend. Together they measure recall, false positives, comment count and token cost before and after a change. Results are in [`evals/results.md`](./evals/results.md), and [`evals/README.md`](./evals/README.md) explains how to run them. The evals don't ship with the skill.
 
 CI (`.github/workflows/ci.yml`, on Ubuntu and macOS) runs the `prepare-diff.sh` self-check, checks that every deprecation-table row matches a gate pattern in `deprecation-symbols.txt`, and fails if anything in the shipped skill references `evals/`. It doesn't run the evals.
 
