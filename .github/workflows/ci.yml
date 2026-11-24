@@ -36,3 +36,51 @@ jobs:
             echo "::error::The skill ships alone; runtime files must not reference evals/"
             exit 1
           fi
+
+      - name: shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck skills/review-mobile-pr/scripts/*.sh evals/*.sh
+
+      - name: Every CLAUDE.md is a symlink to AGENTS.md
+        run: |
+          bad=0
+          while IFS= read -r f; do
+            if [ ! -L "$f" ] || [ "$(readlink "$f")" != AGENTS.md ]; then
+              echo "::error file=$f::CLAUDE.md must be a relative symlink to AGENTS.md"
+              bad=1
+            fi
+          done < <(find . -name CLAUDE.md -not -path './.git/*')
+          exit $bad
+
+      - name: android.md / ios.md tables of contents match their H2s
+        working-directory: skills/review-mobile-pr/references
+        run: |
+          python3 -I - android.md ios.md <<'PY'
+          import re, sys
+          bad = 0
+          for p in sys.argv[1:]:
+              text = open(p).read()
+              slug = lambda h: re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-")
+              h2 = [slug(h) for h in re.findall(r"^## (.+)$", text, re.M) if h != "Table of contents"]
+              toc = re.findall(r"^\d+\. \[.*?\]\(#(.+?)\)$", text, re.M)
+              if h2 != toc:
+                  print(f"::error file={p}::TOC anchors {toc} != H2 slugs {h2}")
+                  bad = 1
+          sys.exit(bad)
+          PY
+
+      - name: Reference facts older than 150 days
+        working-directory: skills/review-mobile-pr/references
+        run: |
+          python3 -I - <<'PY'
+          import datetime, glob, re
+          for p in sorted(glob.glob("*.md")):
+              m = re.search(r"^Facts last updated: (\d{4}-\d{2}-\d{2})", open(p).read(), re.M)
+              if m and (datetime.date.today() - datetime.date.fromisoformat(m.group(1))).days > 150:
+                  print(f"::warning file={p}::Facts last updated {m.group(1)}; re-verify and bump the date")
+          PY
+
+      - name: Every eval fixture builds
+        run: |
+          work=$(mktemp -d)
+          for f in evals/fixtures/*/; do bash evals/setup.sh "$f" "$work" > /dev/null; done

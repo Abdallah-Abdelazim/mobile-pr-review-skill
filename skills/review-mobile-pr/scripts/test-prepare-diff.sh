@@ -63,18 +63,18 @@ grep -qxF '=== caf\303\251.kt' "$tmp/pr.diff"       # git-quoted path unquoted
 grep -qx 'files=6 added=6 removed=3 renamed=1 tiny_size=no' "$tmp/stats"
 
 printf 'my dir/A.kt\tRIGHT\t3\napp/Foo.java\tLEFT\t2\napp/Foo.java\tRIGHT\t2\n' | ./prepare-diff.sh check "$tmp/pr.diff"
-! printf 'app/Foo.java\tRIGHT\t9\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null
-! printf 'yarn.lock\tRIGHT\t1\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null
+printf 'app/Foo.java\tRIGHT\t9\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null && exit 1
+printf 'yarn.lock\tRIGHT\t1\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null && exit 1
 printf '%s\tRIGHT\t2\n' 'caf\303\251.kt' | ./prepare-diff.sh check "$tmp/pr.diff"
 
 # Ranges (4th column = start_line): same side, same hunk, start < line.
 printf 'app/Two.kt\tRIGHT\t3\t1\napp/Two.kt\tRIGHT\t13\t10\n' | ./prepare-diff.sh check "$tmp/pr.diff"
 { printf 'app/Two.kt\tRIGHT\t12\t2\n' | ./prepare-diff.sh check "$tmp/pr.diff" || true; } | grep -q '^invalid range:'   # crosses hunks
-! printf 'app/Two.kt\tRIGHT\t2\t2\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null                # start == line
-! printf 'app/Two.kt\tLEFT\t2\t1\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null                 # line 1 exists only on RIGHT
+printf 'app/Two.kt\tRIGHT\t2\t2\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null && exit 1   # start == line
+printf 'app/Two.kt\tLEFT\t2\t1\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null && exit 1   # line 1 exists only on RIGHT
 
 [ "$(printf 'my dir/A.kt\n' | ./prepare-diff.sh slice "$tmp/pr.diff" | head -1)" = '=== my dir/A.kt' ]
-! printf 'my dir/A.kt\n' | ./prepare-diff.sh slice "$tmp/pr.diff" | grep -q Foo.java
+printf 'my dir/A.kt\n' | ./prepare-diff.sh slice "$tmp/pr.diff" | grep -q Foo.java && exit 1
 [ "$(printf 'new/B.kt\n' | ./prepare-diff.sh slice "$tmp/pr.diff")" = '=== new/B.kt (renamed from old/B.kt, no content change)' ]
 
 echo "prepare-diff.sh: all checks passed"
