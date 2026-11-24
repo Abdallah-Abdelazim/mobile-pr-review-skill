@@ -275,7 +275,7 @@ Under `--re-review`, only new findings qualify — never a thread verdict or a r
 ### 8. Post findings
 
 - **One review, posted once**: inline comments plus the short summary body below — and, under `--re-review`, the thread replies from `replies.json`, attached to that same review (sub-step 5)
-- **Nothing survived steps 5–7 and no replies? Don't POST at all.** An empty Draft review would block the next run (see step 1's pending-review check); skip to step 9 and report "no findings, nothing posted." Body-list thread verdicts alone don't justify a review — step 9 prints them.
+- **Nothing survived steps 5–7 and no replies? Don't POST at all.** An empty Draft review would block the next run (see step 1's pending-review check); skip to step 9 and report "no findings, nothing posted." Under `--local` or `--dry-run`, still write `<run dir>/findings.md` (the body alone, per sub-step 2) before skipping. Body-list thread verdicts alone don't justify a review — step 9 prints them.
 
 **Anchoring.** Every inline comment must sit on a line inside the diff, or GitHub rejects the whole review: a `+` or context line uses `"side": "RIGHT"` with its new-file line number; a removed `-` line uses `"side": "LEFT"` with its old-file line number. A finding whose real location is outside the diff — a forgotten call site in an untouched file, a missing test file — goes on the diff line that caused it (e.g. the rename), naming the out-of-diff location(s) in the comment ("Still calls the old name: `Foo.kt:88`, `Bar.kt:12`"). A finding no diff line causes (PR scope, PR description) goes in the body's "Not tied to a diff line" list instead.
 

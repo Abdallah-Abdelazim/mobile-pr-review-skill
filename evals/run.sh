@@ -11,6 +11,7 @@ set -euo pipefail
 evals=$(cd "$(dirname "$0")" && pwd)
 out=${EVAL_OUT:-$(mktemp -d)}
 claude=${CLAUDE:-claude}
+sys_tmp=${TMPDIR:-/tmp}
 budget=${EVAL_BUDGET_USD:-15}
 model=${EVAL_MODEL:-}
 args=(--output-format json --max-budget-usd "$budget")
@@ -18,9 +19,9 @@ args=(--output-format json --max-budget-usd "$budget")
 # shellcheck disable=SC2206
 [ -n "${EVAL_CLAUDE_ARGS:-}" ] && args+=($EVAL_CLAUDE_ARGS)
 # -p denies any tool not listed. Bash stays unscoped (the skill runs git/awk/grep); --local makes no GitHub calls.
-review_tools='Bash Read Write Glob Grep Agent Skill WebSearch WebFetch'
+review_tools='Bash Read Write Edit Glob Grep Agent Skill WebSearch WebFetch'
 
-[ $# -eq 0 ] && set -- $(ls "$evals/fixtures")
+if [ $# -eq 0 ]; then set -- "$evals"/fixtures/*/; set -- "${@%/}"; set -- "${@##*/}"; fi
 for name in "$@"; do
   dir="$out/$name"
   mkdir -p "$dir/tmp"
@@ -29,11 +30,18 @@ for name in "$@"; do
   [ -f "$evals/fixtures/$name/threads.json" ] && prompt+=" --re-review round1 --threads $evals/fixtures/$name/threads.json"
   prompt+="${EVAL_FLAGS:+ $EVAL_FLAGS}"
   touch "$dir/start"
-  # The skill's run dir comes from mktemp -d, so a per-fixture TMPDIR makes its findings.md unambiguous.
-  (cd "$repo" && TMPDIR="$dir/tmp" "$claude" -p "$prompt" "${args[@]}" --allowedTools "$review_tools") \
-    > "$dir/review.json" || echo "$name: review run failed (see $dir/review.json)" >&2
-  findings=$(find "$dir/tmp" "${TMPDIR:-/tmp}" -name findings.md -newer "$dir/start" 2>/dev/null | head -1 || true)
-  if [ -z "$findings" ]; then echo "$name: no findings.md written" >&2; continue; fi
+  if ! (cd "$repo" && TMPDIR="$dir/tmp" "$claude" -p "$prompt" "${args[@]}" --allowedTools "$review_tools") > "$dir/review.json"; then
+    echo "$name: review run failed, not graded (see $dir/review.json)" >&2; continue
+  fi
+  # The skill's Bash tool doesn't inherit TMPDIR, so its mktemp run dir may land in the system temp dir.
+  # Accept only a run dir whose raw.diff is this fixture's diff, so another session's run can't be graded.
+  git -C "$repo" diff main...HEAD > "$dir/expected.diff"
+  found=()
+  while IFS= read -r f; do
+    cmp -s "$(dirname "$f")/raw.diff" "$dir/expected.diff" && found+=("$f")
+  done < <(find "$dir/tmp" "${sys_tmp%/}" -maxdepth 2 -name findings.md -newer "$dir/start" 2>/dev/null)
+  if [ "${#found[@]}" -ne 1 ]; then echo "$name: expected 1 findings.md for this fixture, found ${#found[@]}" >&2; continue; fi
+  findings=${found[0]}
   cp "$findings" "$dir/findings.md"
   "$claude" -p "Read $evals/grader.md and follow it. expected.md: $evals/fixtures/$name/expected.md. findings.md: $dir/findings.md." \
     "${args[@]}" --allowedTools Read > "$dir/grade.json" || echo "$name: grader failed (see $dir/grade.json)" >&2

@@ -33,14 +33,14 @@ evals/
 
 ## Running
 
-For each fixture, in a Claude Code session with the skill installed (the repo's `skills/review-mobile-pr`, or the synced global mirror):
+For each fixture, in a Claude Code session with the skill installed (the repo's `skills/review-mobile-pr`, or the synced global mirror). `setup.sh` needs `git` and `rsync`:
 
 1. `evals/setup.sh evals/fixtures/<name> <work-dir>` → prints the fixture repo path.
 2. From that repo, run `/review-mobile-pr --local main` (for a fixture with `threads.json`, add `--re-review round1 --threads <fixture>/threads.json`). It writes `<run dir>/findings.md` and prints `Pass tokens` when the host reports agent usage.
 3. Dispatch a fresh agent: *"Read `<this repo>/evals/grader.md` and follow it. expected.md: `<fixture>/expected.md`. findings.md: `<run dir>/findings.md`."*
 4. Add a row to `results.md`.
 
-`evals/run.sh [<fixture>...]` does steps 1–3 for each fixture in turn with `claude -p` and writes `<out>/summary.tsv`, one line per fixture with the `results.md` columns except the notes. It spends the same tokens as running the steps by hand. `EVAL_BUDGET_USD` caps each `claude` call (default 15), `EVAL_MODEL` sets and records the orchestrator model, `EVAL_CLAUDE_ARGS` passes extra flags such as `--bare`, which skips your hooks and `CLAUDE.md`, and `EVAL_FLAGS` appends skill flags to the prompt, such as `--debate`. Bash is allowed unscoped so the skill can run git/awk/grep, which is safe only because `--local` makes no GitHub calls; run it on a machine where that's acceptable.
+`evals/run.sh [<fixture>...]` does steps 1–3 for each fixture in turn with `claude -p` and writes `<out>/summary.tsv`, one line per fixture with the `results.md` columns except the notes. It spends the same tokens as running the steps by hand. The skill's run dir can land in the system temp dir (its Bash tool doesn't inherit `TMPDIR`), so the script accepts only a `findings.md` whose sibling `raw.diff` is the fixture's own diff. A fixture whose review run fails, or that leaves other than exactly one such `findings.md`, is reported and not graded. Copy each fixture's `review_usd` into the `Review $` column. `EVAL_BUDGET_USD` caps each `claude` call (default 15), `EVAL_MODEL` sets and records the orchestrator model, `EVAL_CLAUDE_ARGS` passes extra flags such as `--bare`, which skips your hooks and `CLAUDE.md`, and `EVAL_FLAGS` appends skill flags to the prompt, such as `--debate`. Bash is allowed unscoped so the skill can run git/awk/grep, which is safe only because `--local` makes no GitHub calls; run it on a machine where that's acceptable.
 
 Run the whole set before and after a change that affects output (pass prompts, references, dedup, severity, comment format) and compare. Model runs vary, so treat a one-fixture difference as noise; look for consistent shifts.
 
