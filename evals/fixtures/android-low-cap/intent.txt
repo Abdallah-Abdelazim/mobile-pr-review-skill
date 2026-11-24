@@ -1,0 +1,3 @@
+Add a font size setting
+
+Users can now pick a text size between 85% and 130% from the settings screen. The choice is saved and shown as a percentage label.

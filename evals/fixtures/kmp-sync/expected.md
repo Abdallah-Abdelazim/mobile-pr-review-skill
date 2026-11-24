@@ -12,4 +12,4 @@
 ## Must not flag
 - `SyncApi.kt` (unchanged).
 
-## Max comments: 7
+## Max low comments: 4

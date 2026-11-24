@@ -11,4 +11,4 @@
 ## Must not flag
 - The existing `canSubmit is false for a short password` test (unchanged).
 
-## Max comments: 6
+## Max low comments: 4

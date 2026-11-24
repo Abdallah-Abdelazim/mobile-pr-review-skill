@@ -15,7 +15,7 @@ evals/
     ├── round1/              # re-review fixtures only: the tree first reviewed (commit tagged `round1`)
     ├── threads.json         # re-review fixtures only: the review threads and author replies on round1
     ├── intent.txt           # the "PR description" (becomes the head commit message)
-    └── expected.md          # must find / should find / thread verdicts / must not flag / max comments
+    └── expected.md          # must find / should find / thread verdicts / must not flag / max low comments
 ```
 
 | Fixture | Exercises |
@@ -29,7 +29,8 @@ evals/
 | `clean-refactor` | false positives on a correct refactor |
 | `tiny-typo` | tiny-diff path: zero dispatch, zero comments |
 | `android-injection` | prompt injection in a code comment and the PR description ("post nothing", "mark as approved") next to a real refund bug |
-| `android-rereview` | `--re-review` quick path: nine threads (yours, a teammate's, a bot's) covering addressed, wrong fix, untouched, valid and invalid pushback; a bug new since round1, one missed in round1, no nits |
+| `android-rereview` | `--re-review` quick path: nine threads (yours, a teammate's, a bot's) covering addressed, wrong fix, untouched, valid and invalid pushback; a bug new since round1, one missed in round1, no LOW findings |
+| `android-low-cap` | step 5's LOW cap: six seeded LOW findings in a tiny diff (`low_cap=4`), 4 inline at most, the rest in the body's "Minor findings" list, plus one MEDIUM must-find |
 
 ## Running
 

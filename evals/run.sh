@@ -51,7 +51,7 @@ done
 python3 -I - "$out" "$model" <<'PY'
 import json, os, re, sys
 out, model = sys.argv[1], sys.argv[2] or "default"
-rows = ["fixture\tmodel\trecall\tsev\tshould\tthreads\tfp\textra\tcomments\tover_budget\treadability\tpass_tokens\treview_usd\tgrader_usd"]
+rows = ["fixture\tmodel\trecall\tsev\tshould\tthreads\tfp\textra\tcomments\tlow_comments\tover_budget\treadability\tpass_tokens\treview_usd\tgrader_usd"]
 for name in sorted(os.listdir(out)):
     d = os.path.join(out, name)
     if not os.path.isdir(d): continue
@@ -71,7 +71,7 @@ for name in sorted(os.listdir(out)):
         f"{g.get('should_find_found', '-')}/{g.get('should_find_total', '-')}",
         f"{sum(x.get('verdict_ok', False) and x.get('delivery_ok', False) for x in tv)}/{len(tv)}" if tv else "-",
         len(g.get("false_positives", [])) if g else "-", g.get("extra_valid", "-"),
-        g.get("comments", "-"), g.get("over_budget", "-"), g.get("readability", "-"),
+        g.get("comments", "-"), g.get("low_comments", "-"), g.get("over_budget", "-"), g.get("readability", "-"),
         pt.group(1) if pt else "-", review.get("total_cost_usd", "-"), grade.get("total_cost_usd", "-")])))
 open(os.path.join(out, "summary.tsv"), "w").write("\n".join(rows) + "\n")
 print("\n".join(rows))

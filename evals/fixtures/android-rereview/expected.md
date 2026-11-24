@@ -25,4 +25,4 @@ Re-review fixture: run with `--local main --re-review round1 --threads <fixture>
 - `viewModelScope.launch` without `Dispatchers.IO` (thread 109's claim is wrong).
 - `refreshBalance()` after `transfer()` as a redundant call (thread 104's pushback is right).
 
-## Max comments: 4
+## Max low comments: 0

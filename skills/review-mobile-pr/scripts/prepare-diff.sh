@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Usage:
-#   prepare-diff.sh annotate < raw.diff > pr.diff   # prints "files=N added=X removed=Y renamed=Z tiny_size=yes|no" to stderr (yes: ≤30 changed lines in ≤2 files)
+#   prepare-diff.sh annotate < raw.diff > pr.diff   # prints "files=N added=X removed=Y renamed=Z tiny_size=yes|no low_cap=N" to stderr (tiny_size yes: ≤30 changed lines in ≤2 files; low_cap: 4/8/12/15 for ≤200/≤1000/≤3000/more reviewed lines, omitted files excluded)
 #   prepare-diff.sh check pr.diff < anchors.tsv     # anchors: path<TAB>RIGHT|LEFT<TAB>line[<TAB>start_line]; prints invalid ones, exit 1 if any
 #   prepare-diff.sh slice pr.diff < paths.txt > shard.diff   # keeps only the sections for the listed paths (one per line)
 set -euo pipefail
@@ -41,10 +41,14 @@ annotate() {
       next
     }
     inhunk && /^\\/ { next }
-    inhunk && /^\+/ { fa++; added++;   if (!skip) printf "R%d %s\n", new, $0; new++; next }
-    inhunk && /^-/  { fr++; removed++; if (!skip) printf "L%d %s\n", old, $0; old++; next }
+    inhunk && /^\+/ { fa++; added++;   if (!skip) { rev++; printf "R%d %s\n", new, $0 }; new++; next }
+    inhunk && /^-/  { fr++; removed++; if (!skip) { rev++; printf "L%d %s\n", old, $0 }; old++; next }
     inhunk && /^ /  { if (!skip) printf "R%d %s\n", new, $0; new++; old++; next }
-    END { flush(); printf "files=%d added=%d removed=%d renamed=%d tiny_size=%s\n", files, added, removed, renamed, (added + removed <= 30 && files <= 2) ? "yes" : "no" > "/dev/stderr" }
+    END {
+      flush()
+      cap = rev <= 200 ? 4 : rev <= 1000 ? 8 : rev <= 3000 ? 12 : 15
+      printf "files=%d added=%d removed=%d renamed=%d tiny_size=%s low_cap=%d\n", files, added, removed, renamed, (added + removed <= 30 && files <= 2) ? "yes" : "no", cap > "/dev/stderr"
+    }
   '
 }
 

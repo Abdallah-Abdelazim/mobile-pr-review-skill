@@ -11,4 +11,4 @@
 ## Must not flag
 - `data class User` as a defect in itself (it's unchanged). A note that this diff left `User.title` unused is valid — it's dead code the change created.
 
-## Max comments: 6
+## Max low comments: 4

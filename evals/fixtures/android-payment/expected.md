@@ -11,4 +11,4 @@
 ## Must not flag
 - Anything on PaymentDto.kt's new `WALLET -> "wallet"` line as a defect.
 
-## Max comments: 6
+## Max low comments: 4

@@ -15,4 +15,4 @@
 - CartScreen.kt `onCheckout` lambda / `List<CartItem>` stability — strong skipping handles both.
 - Modifier ordering in CartScreen.kt — nothing order-dependent here.
 
-## Max comments: 10
+## Max low comments: 4

@@ -84,7 +84,7 @@ Invoke with a PR URL or number, optionally choosing Live posting, and optionally
 /review-mobile-pr --local --re-review <commit> --threads <file>   # local re-review against <commit>, threads read from <file>
 ```
 
-`--re-review` verifies the existing review threads and sweeps the changes since the last review. Up to 400 changed lines since then it's the quick path: you do everything inline, zero dispatch, no nits. Above that, or with `--full`, it escalates to a normal review of the whole PR (`--quick` forces the quick path). See step 1.
+`--re-review` verifies the existing review threads and sweeps the changes since the last review. Up to 400 changed lines since then it's the quick path: you do everything inline, zero dispatch, MEDIUM and above only. Above that, or with `--full`, it escalates to a normal review of the whole PR (`--quick` forces the quick path). See step 1.
 
 Flags combine freely — e.g. `--lite --apply-safe-fixes` runs the narrow pass set and still applies any suggestion-grade fix that survives it.
 
@@ -154,7 +154,7 @@ Annotate the diff — this is what every pass reads, and what step 8 validates a
 <skill dir>/scripts/prepare-diff.sh annotate < <run dir>/raw.diff > <run dir>/pr.diff
 ```
 
-Each `+`/context line is prefixed `R<n>` (its new-file line, for `side: RIGHT`), each `-` line `L<n>` (its old-file line, for `side: LEFT`), so no one ever computes a line number from a hunk header. Lockfiles, binaries, snapshots and build output collapse to one `=== <path> (omitted: …)` line. The script prints `files=… added=… removed=… renamed=… tiny_size=yes|no`. Use that for size decisions instead of reading the diff yourself. If `gh pr diff` fails because the diff is too large, do the checkout below first, then produce `raw.diff` with `git -C <repo root> diff <remote>/<baseRefName>...<headRefOid>` (fetch the base branch if needed) and annotate that. If the repo root is none (even the clone failed), stop and tell the user the PR is too large to review without one.
+Each `+`/context line is prefixed `R<n>` (its new-file line, for `side: RIGHT`), each `-` line `L<n>` (its old-file line, for `side: LEFT`), so no one ever computes a line number from a hunk header. Lockfiles, binaries, snapshots and build output collapse to one `=== <path> (omitted: …)` line. The script prints `files=… added=… removed=… renamed=… tiny_size=yes|no low_cap=N`. Use that for size decisions (`low_cap` is step 5's LOW budget) instead of reading the diff yourself. If `gh pr diff` fails because the diff is too large, do the checkout below first, then produce `raw.diff` with `git -C <repo root> diff <remote>/<baseRefName>...<headRefOid>` (fetch the base branch if needed) and annotate that. If the repo root is none (even the clone failed), stop and tell the user the PR is too large to review without one.
 
 **Repo checkout at the PR head.** Passes grep call sites and read surrounding code, so they need the PR's code, not whatever branch is checked out:
 
@@ -212,7 +212,7 @@ Decide the conditional dispatches below by grepping `pr.diff` rather than readin
 
 **Exception — tiny diffs.** Every dispatched pass costs roughly 70k tokens before it reads a single diff line (measured in this skill's evals), so a diff that meets **all** of these is reviewed by you directly, with zero dispatch. **Gate on step 1's `tiny_size` first: `no` means dispatch normally, with no judgment call.** It encodes at most **30 changed lines** (`added + removed`) in at most **2 files**, which evals saw misjudged by eye (36 lines taken as tiny). Only when it says `yes` do the remaining criteria apply: no control-flow change (no added/removed `if`/`when`/`switch`/`guard`/loop/`try`/`catch`/early `return`); and no file whose path suggests auth, payment, persistence, crypto or concurrency. Typical: a typo, a string or config value, a comment edit, a trivial rename. Then read `pr.diff`, the touched file(s) and the platform reference file(s) from step 2, and apply the same checks the relevant passes would run. Still produce findings in the `passes/shared.md` JSON schema and severity scale, so steps 5 onward work unchanged. If you notice real logic once you're reading it, stop and dispatch normally — that's exactly the size and risk the parallel passes exist for. This exception takes precedence over `--lite` too.
 
-**Exception — re-review quick path.** Under `--re-review`, verify the threads first (`modes/re-review.md` section 5), inline, on either path. When the mode file chose **quick**, you also review the code yourself with zero dispatch, taking precedence over the tiny-diff exception: read `since.diff` in depth — the touched files, call sites, the platform reference file(s) from step 2 — for anything the changes since the last review broke or left unfinished, a fix included; then read the rest of `pr.diff` (the diff only, opening a file just to verify a candidate) for issues round one missed. Skip that second sweep, with `missed-issue sweep: skipped (PR > 1,500 lines)` in step 9, when the whole PR's `added + removed` exceeds 1,500. Produce findings in the `passes/shared.md` schema and severity scale, every severity but no nits; anchor with `R<n>` numbers, never a `since.diff` `L<n>` (it counts lines in the baseline). A concern an in-scope thread already covers is that thread's verdict, not a new finding. **Escalated** re-reviews dispatch normally over `pr.diff`, the whole PR.
+**Exception — re-review quick path.** Under `--re-review`, verify the threads first (`modes/re-review.md` section 5), inline, on either path. When the mode file chose **quick**, you also review the code yourself with zero dispatch, taking precedence over the tiny-diff exception: read `since.diff` in depth — the touched files, call sites, the platform reference file(s) from step 2 — for anything the changes since the last review broke or left unfinished, a fix included; then read the rest of `pr.diff` (the diff only, opening a file just to verify a candidate) for issues round one missed. Skip that second sweep, with `missed-issue sweep: skipped (PR > 1,500 lines)` in step 9, when the whole PR's `added + removed` exceeds 1,500. Produce findings in the `passes/shared.md` schema and severity scale, MEDIUM and above and QUESTIONs only (no LOW, nits included); anchor with `R<n>` numbers, never a `since.diff` `L<n>` (it counts lines in the baseline). A concern an in-scope thread already covers is that thread's verdict, not a new finding. **Escalated** re-reviews dispatch normally over `pr.diff`, the whole PR.
 
 Always dispatch (in full mode and under `--lite`):
 
@@ -246,7 +246,7 @@ Parse every pass's JSON array into one pool (a pass that returned prose instead 
 1. **Drop LOW-confidence findings** outright, regardless of severity — a wrong finding costs the author's trust more than a missed one costs coverage.
 2. **Merge duplicates across passes.** Passes overlap by design (Bug Hunter and Code-Quality both see a forgotten `when` branch; Test Analyzer reports the same lines as an untested bug), so the same problem often arrives two to four times. Findings on the same `path` with overlapping lines (or naming the same out-of-diff location) and the same root cause are one finding: keep the highest severity, the clearest `title`/`body`, the best `fix` (a `suggestion` beats `code` beats `none`), and the union of `evidence`; fold in a one-clause fact a merged finding adds that the kept one lacks ("no test covers this path"). Count merges for the summary. Separately, when distinct findings land on the same lines with fixes that overlap or conflict (a one-line `suggestion` plus a refactor of the same statement), make them consistent — one combined fix on the most severe, and a one-line pointer ("see the comment above for the fix") on the others. When unsure whether two findings share a root cause, merge only if one's fix would also resolve the other.
 3. **Re-verify** every CRITICAL/HIGH finding and every MEDIUM-confidence finding before trusting it. Use its `evidence` as the starting point and check it yourself with `grep`/`Read` in the repo root (a call site, a default value, what a function returns, what the repository documents). Drop a finding the code contradicts. Keep one you can't confirm or refute, but reword its `body` conditionally ("If `items` can be empty here, …") and cap it at MEDIUM. Softening caps a finding; it never lowers one already at MEDIUM or below. Uncertainty goes into the wording, not the severity, unless the code disproves part of the claim. Count verified / softened / dropped for the summary.
-4. **Post every surviving finding inline**, nits included — never fold LOW findings into the review body. QUESTION findings keep their own cap of 5 (see `passes/bug-hunter.md`). The one exception: a quick-path re-review drops every `nit: true` finding — round two is about fixes and real issues.
+4. **Cap LOW findings at `low_cap`.** Every CRITICAL, HIGH, MEDIUM and QUESTION finding posts inline, uncapped here (QUESTIONs keep their own cap of 5, see `passes/bug-hunter.md`). LOW findings, nits included, post inline up to `low_cap` from step 1's stats (under an escalated `--re-review`, `since.diff`'s stats). When more survive, read the whole LOW set and judge which matter least — trivial, cosmetic, or least likely to change what the author does — never by order of arrival; those move to the body's "Minor findings" list (step 8), one line each, and aren't posted inline. A quick-path re-review produces no LOW findings at all (step 3).
 
 ### 6. Cross-check against existing PR comments
 
@@ -287,6 +287,11 @@ Top risk: <one line, `file` named — omit when nothing is must fix>
 
 **Not tied to a diff line:**          ← omit section when empty
 - <title> — <one sentence>
+
+<details><summary>Minor findings not posted inline (<n>)</summary>   ← step 5's LOW overflow; omit when none
+
+- `<path>:<line>` — <gist, ≤12 words>
+</details>
 ```
 
 Under `--re-review`, start the body with the thread tally and the body-list verdicts from `thread-verdicts.json` (logins in backticks, never `@`):
@@ -421,6 +426,7 @@ Posted (one line per inline comment, most severe first):
   🟡 should fix  <file>:<line>   <title>
   …
 Not tied to a diff line: <title>, <title>      [omit when none]
+Over the LOW cap (<low_cap>), in the body's list: <file>:<line> <title>, …   [omit when none]
 Applied directly: <file>:<line> <title>, …    [fix mode only]
 
 Re-review since <sha7>: quick | escalated (<n> lines)[ · missed-issue sweep: skipped (PR > 1,500 lines)]   [--re-review only, this block]

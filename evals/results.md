@@ -54,6 +54,12 @@ Recall = must-find found / total. FP = false positives. Sev = must-finds at or a
 | 2026-11-24 | 47ca963 | ios-profile | 3/3 | 3/3 | 2/2 | 0 | 4 | 9 / 8 ⚠️ | 5 | 407,644 | 3.06 | Phase B baseline, full suite. 2 High, 5 Medium, 2 Low. Grader $0.67. |
 | 2026-11-24 | 47ca963 | kmp-sync | 3/3 | 3/3 | 2/2 | 0 | 3 | 8 / 7 ⚠️ | 5 | – | 2.44 | Phase B baseline, full suite. 2 Critical, 1 High, 4 Medium, 1 Low (runBlocking, as calibrated). Grader $0.69. |
 | 2026-11-24 | 47ca963 | tiny-typo | – | – | – | 0 | 0 | 0 / 0 | 5 | 0 (tiny-diff path) | 0.82 | Phase B baseline, full suite. Grader $0.59. |
+| 2026-11-24 | 4179c81 (pre-cap skill), fixture v2 | android-low-cap | 1/1 | 1/1 | 6/7 | 0 | 2 | 8 (7 low) / 4 low ⚠️ | 5 | – | 2.33 | Before. All 7 Lows posted inline, no Minor findings list. Missed magic-number (folded into a snapshot-read comment). v1 of this fixture (Lows foldable into the Medium, a `Log.d` trap) never reached the cap and is discarded. |
+| 2026-11-24 | 4179c81 + LOW cap (this commit) | android-low-cap | 1/1 | 1/1 | 6/7 | 0 | 1 | 5 (4 low) / 4 low | 5 | – | 0.96 | After. Cap engaged: 4 Lows inline, `isDarkMode` redundant local moved to the body's Minor findings list. magic-number missed again. Grader $0.67. |
+| 2026-11-24 | 4179c81 + LOW cap (this commit) | android-rereview | 1/1 | 1/1 | 1/1 | 0 | 0 | 2 (0 low) / 0 low | 5 | – | 4.05 | After. Threads 9/9. The baseline's quick-path Low FP is gone. Review cost up from $2.68. Grader $0.56. |
+| 2026-11-24 | 4179c81 + LOW cap (this commit) | kmp-sync | 3/3 | 3/3 | 2/2 | 0 | 5 | 10 (1 low) / 4 low | 5 | – | 2.74 | After. Within the Low budget; 5 valid extras, mostly Medium, so the total count is up from 8. Grader $0.64. |
+| 2026-11-24 | 4179c81 + LOW cap (this commit) | ios-profile | 3/3 | 3/3 | 2/2 | 0 | 4 | 9 (3 low) / 4 low | 5 | – | 3.17 | After. Within the Low budget. Grader $0.66. |
+| 2026-11-24 | 4179c81 + LOW cap (this commit) | android-comments-types | 3/3 | 3/3 | 1/1 | 0 | 2 | 5 (1 low) / 4 low | 5 | – | 2.90 | After. Within the Low budget; readability back to 5. Grader $0.63. |
 
 **Fixture changes (7804bdb, after the 2026-10-08 runs above):**
 - `ios-profile/expected.md`: off-main-publish now also accepts line 9 (the class declaration, where the `@MainActor` fix goes). Under it, the 2026-10-08 ios-profile run scores 3/3.
@@ -62,3 +68,4 @@ Recall = must-find found / total. FP = false positives. Sev = must-finds at or a
 
 **Grader and table changes (2026-11-24):**
 - `grader.md` (2026-11-24): spelled out that an out-of-diff entry anchored on its causing line counts, and that a fact folded into another comment counts only when stated explicitly. Earlier android-payment should-find scores (2026-10-07 to 2026-10-23) were judged inconsistently on that point. Also: `results.md` gained a `Review $` column (`summary.tsv`'s `review_usd`); earlier rows have `–`, their cost is in Notes where recorded.
+- Every fixture's `## Max comments: N` became `## Max low comments: N` (2026-11-24, with the LOW cap): N = min(the fixture's `low_cap`, the old total), so `tiny-typo` stays 0; `android-rereview` is 0 because the quick path no longer reports Lows. The grader now flags `over_budget` on inline Lows only; rows from here on show `total (low) / max low`.

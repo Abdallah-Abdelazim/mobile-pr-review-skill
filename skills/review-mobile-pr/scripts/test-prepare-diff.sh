@@ -60,7 +60,7 @@ grep -qx '=== my dir/A.kt' "$tmp/pr.diff"            # tab after path stripped
 grep -qx 'R3 +c' "$tmp/pr.diff"
 grep -qx '=== new/B.kt (renamed from old/B.kt, no content change)' "$tmp/pr.diff"   # pure rename kept
 grep -qxF '=== caf\303\251.kt' "$tmp/pr.diff"       # git-quoted path unquoted
-grep -qx 'files=6 added=6 removed=3 renamed=1 tiny_size=no' "$tmp/stats"
+grep -qx 'files=6 added=6 removed=3 renamed=1 tiny_size=no low_cap=4' "$tmp/stats"
 
 printf 'my dir/A.kt\tRIGHT\t3\napp/Foo.java\tLEFT\t2\napp/Foo.java\tRIGHT\t2\n' | ./prepare-diff.sh check "$tmp/pr.diff"
 printf 'app/Foo.java\tRIGHT\t9\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /dev/null && exit 1
@@ -76,5 +76,15 @@ printf 'app/Two.kt\tLEFT\t2\t1\n' | ./prepare-diff.sh check "$tmp/pr.diff" > /de
 [ "$(printf 'my dir/A.kt\n' | ./prepare-diff.sh slice "$tmp/pr.diff" | head -1)" = '=== my dir/A.kt' ]
 printf 'my dir/A.kt\n' | ./prepare-diff.sh slice "$tmp/pr.diff" | grep -q Foo.java && exit 1
 [ "$(printf 'new/B.kt\n' | ./prepare-diff.sh slice "$tmp/pr.diff")" = '=== new/B.kt (renamed from old/B.kt, no content change)' ]
+
+# low_cap tiers count reviewed lines only: lockfile lines never raise the cap.
+cap_for() {  # cap_for <added lines in a.kt> [<added lines in a lockfile>]
+  { printf 'diff --git a/a.kt b/a.kt\n--- /dev/null\n+++ b/a.kt\n@@ -0,0 +1,%d @@\n' "$1"; seq "$1" | sed 's/^/+/'
+    if [ "${2:-0}" -gt 0 ]; then printf 'diff --git a/x.lock b/x.lock\n--- /dev/null\n+++ b/x.lock\n@@ -0,0 +1,%d @@\n' "$2"; seq "$2" | sed 's/^/+/'; fi
+  } | ./prepare-diff.sh annotate 2>&1 >/dev/null | sed 's/.*low_cap=//'
+}
+expect_cap() { local want=$1; shift; local got; got=$(cap_for "$@"); [ "$got" = "$want" ] || { echo "low_cap for $*: got $got, want $want"; exit 1; }; }
+expect_cap 4 200; expect_cap 8 201; expect_cap 8 1000; expect_cap 12 1001
+expect_cap 12 3000; expect_cap 15 3001; expect_cap 4 10 5000
 
 echo "prepare-diff.sh: all checks passed"

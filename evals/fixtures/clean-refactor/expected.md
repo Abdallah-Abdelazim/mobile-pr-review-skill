@@ -12,4 +12,4 @@ A correct, behavior-preserving refactor. This fixture measures false positives.
 - Any finding at MEDIUM or above — the refactor is correct.
 - "Missing tests" — no behavior changed.
 
-## Max comments: 2
+## Max low comments: 2

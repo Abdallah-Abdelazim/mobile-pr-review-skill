@@ -6,7 +6,7 @@ A re-review answers two questions: were the existing review threads addressed (o
 
 ## 1. Baseline
 
-- **PR mode:** `<last>` = the `commit_id` of your newest submitted review (pre-flight's reviews, `state` not `PENDING`, `user` = you); if you have none, the newest submitted review by anyone. No submitted review at all → drop `--re-review`, run a normal full review, and say why in the summary.
+- **PR mode:** `<last>` = the `commit_id` of your newest submitted review (pre-flight's reviews, `state` not `PENDING`, `user` = you); if you have none, the newest submitted review by anyone. No submitted review at all → drop `--re-review`, run a normal full review, and say why in the summary. From that review's `body` in `<run dir>/existing-reviews.jsonl`, keep the `- \`<path>:<line>\` — <gist>` lines of its "Minor findings not posted inline" list (if any) in `<run dir>/prior-minor.txt`: those LOW findings were already raised. In step 5, drop a new finding that matches one (same file, same root cause, near the same code) unless the problem has got worse and now rates MEDIUM or above; then post it as a new finding. `--local` has no previous review body, so there is nothing to match.
 - **`--local`:** `<last>` = `git rev-parse <commit>` of the `--re-review <commit>` argument.
 - If `<last>` isn't an ancestor of the head (`git -C <repo root> merge-base --is-ancestor <last> <head>` fails — a force-push or rebase), fetch it: `git -C <repo root> fetch <remote> <last>` (`<remote>` = the one step 1 fetched the PR from, `origin` in a blobless clone; under `--local`, `<commit>` must already exist locally). If that fails too, there's no incremental diff: escalate (section 4) and say why.
 
@@ -66,7 +66,7 @@ a=$(grep -Ec '^R[0-9]+ \+' <run dir>/since.diff || true); r=$(grep -Ec '^L[0-9]+
 ```
 
 - **Quick** — at most **400** changed lines, or `--quick`. Step 3's "re-review quick path" exception applies: you review inline, zero dispatch.
-- **Escalated** — more than 400, `--full`, or no incremental diff (section 1; this wins over `--quick`, which needs `since.diff`). Steps 3–4 run normally over `pr.diff` (the whole PR), `--lite` and the tiny-diff exception included, nits included.
+- **Escalated** — more than 400, `--full`, or no incremental diff (section 1; this wins over `--quick`, which needs `since.diff`). Steps 3–4 run normally over `pr.diff` (the whole PR), `--lite` and the tiny-diff exception included, nits included; step 5 caps LOW findings at `since.diff`'s `low_cap` (the `annotate` stats of `since-raw.diff`; with no incremental diff, step 1's).
 
 Record which and the count for the step 1 header and step 9. Thread verification (section 5) runs inline on both paths.
 

@@ -14,4 +14,4 @@
 - `#Preview` usage.
 - `URL(string: "<literal>")!` at CRITICAL/HIGH — a constant literal URL.
 
-## Max comments: 8
+## Max low comments: 4
