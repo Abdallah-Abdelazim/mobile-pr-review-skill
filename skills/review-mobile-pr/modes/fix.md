@@ -2,7 +2,7 @@
 
 Read by the orchestrator only, at step 7, once step 7's skip conditions in `SKILL.md` have passed. Step numbers refer to `SKILL.md`.
 
-For each finding surviving step 6 (and the debate, if one ran) whose `fix.kind` is `suggestion` and that meets the bar in step 8 ("Use `suggestion` when…" — a 1–3 line drop-in replacement, no surrounding context change, unambiguous correct code):
+For each finding surviving step 6 (and the debate, if one ran) whose `fix.kind` is `suggestion` and that meets the `suggestion` bar in `modes/output.md` (a 1–3 line drop-in replacement, no surrounding context change, unambiguous correct code):
 
 1. **Re-read the target file at the claimed line** to confirm its current content still matches what the finding describes — line numbers can drift between when a pass computed them and now.
 2. **If it matches** and isn't excluded by rule 4, apply the fix with `Edit`, using `fix.code` verbatim, and add it to an "applied fixes" list for the summary. Remove it from the pool step 8 posts **only when the authenticated `gh` user is the PR author** — otherwise keep posting it, since the author never sees a fix that stays in the reviewer's local tree.

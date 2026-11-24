@@ -105,6 +105,6 @@ Judge pushback on the merits, not on tone or seniority: check the author's claim
 💬 **Re:** <the answer>
 ```
 
-A `not fully addressed` reply with a concrete 1–3 line fix may add a ```` ```suggestion ```` block, same bar as step 8.
+A `not fully addressed` reply with a concrete 1–3 line fix may add a ```` ```suggestion ```` block, same bar as `modes/output.md`'s comment format (a 1–3 line drop-in replacement, no surrounding change, unambiguous).
 
 Write `<run dir>/thread-verdicts.json` (`[{url, starter, starter_login, verdict, delivery: "reply" | "body" | "none", note}]`, every in-scope thread) and `<run dir>/replies.json` (`[{thread_id, url, body, reopen}]`, the `reply` ones; `reopen: true` per the rule above) with the `Write` tool. Steps 8 and 9 read them.

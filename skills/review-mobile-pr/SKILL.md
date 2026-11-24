@@ -8,20 +8,20 @@ argument-hint: "<PR URL | number> [--live|--now] [--draft] [--lite] [--debate] [
 
 Reviews a GitHub PR through the lens of a **senior mobile engineer** (Android, iOS, and KMP) and, by default, saves all findings as a **pending (draft) review** — comments are visible only to you in the GitHub UI until you choose to submit them. The user can ask for findings to go live immediately instead; see "Posting mode" below. It can also, only when explicitly asked, apply a narrow class of safe fixes directly instead of just commenting; see "Fix mode" below.
 
-This skill is fully self-contained — no separate agent files, no external dependency beyond the GitHub CLI. Every review pass is a specialized prompt in its own file under `passes/` (see "Review passes" below), dispatched in parallel via the `Agent` tool as a fresh general-purpose agent with no memory of this conversation. The orchestrator (you) writes the PR-specific context (intent, annotated diff, reference paths) to files once, and each dispatched prompt is just a one-line pointer to those files and the pass's own file:
+This skill is fully self-contained — no separate agent files, no external dependency beyond the GitHub CLI. Every review pass is a specialized prompt in its own file under `passes/` (see the table below), dispatched in parallel via the `Agent` tool as a fresh general-purpose agent with no memory of this conversation. The orchestrator (you) writes the PR-specific context (intent, annotated diff, reference paths) to files once, and each dispatched prompt is just a one-line pointer to those files and the pass's own file:
 
-| Pass | Focus | Dispatch |
-|---|---|---|
-| Bug Hunter | Correctness — forgotten call sites, unhappy paths, wrong logic, non-exhaustive branching, contract mismatches, concurrency correctness — plus a dedicated error-handling lens: swallowed exceptions, unjustified fallbacks, overly broad catches | Always |
-| Code-Quality Reviewer | Code smells, dead/unused code, duplication, SOLID/naming/PR-scope, platform checklist backstop | Always |
-| Deprecation Scanner | APIs deprecated/superseded/removed as of 2026 (Android 16/API 36, Swift 6, iOS 17–26) — extends beyond what a generic review tool tracks | When the diff touches Android and/or iOS files **and** an added line matches `references/deprecation-symbols.txt` (step 4) — skipped under `--lite` |
-| Test Analyzer | Test coverage gaps, tests that don't exercise what they claim to | When the diff changes non-test code or tests — skipped under `--lite` |
-| Comment Analyzer | Comment/doc accuracy, stranded artifacts from incomplete deletions | When the diff adds/modifies comments or doc comments — skipped under `--lite` |
-| Type-Design Analyzer | Type encapsulation and invariant expression | When the diff adds/reshapes a data class, sealed class/interface, enum, struct, or protocol — skipped under `--lite` |
+| Pass | Focus | Dispatch | Prompt |
+|---|---|---|---|
+| Bug Hunter | Correctness — forgotten call sites, unhappy paths, wrong logic, non-exhaustive branching, contract mismatches, concurrency correctness — plus a dedicated error-handling lens: swallowed exceptions, unjustified fallbacks, overly broad catches | Always | `passes/bug-hunter.md` |
+| Code-Quality Reviewer | Code smells, dead/unused code, duplication, SOLID/naming/PR-scope, platform checklist backstop | Always | `passes/code-quality.md` |
+| Deprecation Scanner | APIs deprecated/superseded/removed as of 2026 (Android 16/API 36, Swift 6, iOS 17–26) — extends beyond what a generic review tool tracks | When the diff touches Android and/or iOS files **and** an added line matches `references/deprecation-symbols.txt` (step 4) — skipped under `--lite` | `passes/deprecation-scanner.md` |
+| Test Analyzer | Test coverage gaps, tests that don't exercise what they claim to | When the diff changes non-test code or tests — skipped under `--lite` | `passes/test-analyzer.md` |
+| Comment Analyzer | Comment/doc accuracy, stranded artifacts from incomplete deletions | When the diff adds/modifies comments or doc comments — skipped under `--lite` | `passes/comment-analyzer.md` |
+| Type-Design Analyzer | Type encapsulation and invariant expression | When the diff adds/reshapes a data class, sealed class/interface, enum, struct, or protocol — skipped under `--lite` | `passes/type-design.md` |
 
-One more agent runs only on request: the **Debater** (`passes/debater.md`), which argues against every finding and its fix before the author sees it — see "Debate mode" below.
+Every pass also reads `passes/shared.md` (rules, severity scale, confidence, JSON output schema); each `passes/<name>.md` holds only what's pass-specific, and the pass reads it itself — you never load or paste it. One more agent runs only on request: the **Debater** (`passes/debater.md`, its own output schema; procedure in `modes/debate.md`), which argues against every finding and its fix before the author sees it — see "Debate mode" below.
 
-See step 3 for how each is dispatched, step 4 for the deprecation pass specifically, "Review mode" below for what `--lite` changes, and "Review passes" near the end of this file for the `passes/*.md` file holding each one's full prompt.
+See step 3 for how each is dispatched, step 4 for the deprecation pass specifically, "Review mode" below for what `--lite` changes.
 
 ## 📮 Posting mode
 
@@ -193,7 +193,7 @@ Don't read the reference files yourself unless you take step 3's tiny-diff path 
 
 ### 3. Dispatch the review passes
 
-Delegate the labor-intensive analysis to the review passes defined in "Review passes" below instead of doing it by hand. Launch all applicable passes **in parallel** — a single message with multiple `Agent` tool calls, one per pass, each a fresh general-purpose agent with no context of this conversation.
+Delegate the labor-intensive analysis to the review passes in the table at the top instead of doing it by hand. Launch all applicable passes **in parallel** — a single message with multiple `Agent` tool calls, one per pass, each a fresh general-purpose agent with no context of this conversation.
 
 **Shared context goes in a file, never into the prompts.** A dispatched pass can't see your context, so anything you put in its prompt you must generate as output, once per pass — the diff alone, repeated across six prompts, would be the largest cost and the longest wait in the whole review. Instead, write `<run dir>/context.md` once with the `Write` tool, containing:
 
@@ -204,7 +204,7 @@ Delegate the labor-intensive analysis to the review passes defined in "Review pa
 - **The absolute `SKILL.md` path of each installed platform skill resolved in step 2** (at most two per platform), if any — told to the relevant pass as an *extra* source to consult alongside its reference file, never instead of it.
 Everything that's the same on every run — the untrusted-data rule, the read-only and scope rules, the severity scale, the confidence levels and the JSON output schema — lives in the static `<skill dir>/passes/shared.md`, never in `context.md`, so you don't write it out per run.
 
-Each dispatched prompt is then one line — *"You are the <pass> pass of a PR review. Read `<run dir>/context.md` and `<run dir>/pr.diff`, then read `<skill dir>/passes/shared.md` and follow it together with `<skill dir>/passes/<file>`."* (files listed in "Review passes"). Never paste the diff, the context, or a pass file into a prompt. Each pass returns a JSON array of findings in the `shared.md` schema.
+Each dispatched prompt is then one line — *"You are the <pass> pass of a PR review. Read `<run dir>/context.md` and `<run dir>/pr.diff`, then read `<skill dir>/passes/shared.md` and follow it together with `<skill dir>/passes/<file>`."* (files listed in the table at the top). Never paste the diff, the context, or a pass file into a prompt. Each pass returns a JSON array of findings in the `shared.md` schema.
 
 **Model and effort per pass.** Bug Hunter (every shard) and Code-Quality Reviewer run on `model: "opus"`; Test Analyzer, Comment Analyzer, Type-Design Analyzer and the Deprecation Scanner (step 4) run on `model: "sonnet"`. Every pass gets `effort: "high"`. The aliases resolve to the latest model of each family. If the harness's agent tool takes no model or effort argument, dispatch without them.
 
@@ -214,12 +214,7 @@ Decide the conditional dispatches below by grepping `pr.diff` rather than readin
 
 **Exception — re-review quick path.** Under `--re-review`, verify the threads first (`modes/re-review.md` section 5), inline, on either path. When the mode file chose **quick**, you also review the code yourself with zero dispatch, taking precedence over the tiny-diff exception: read `since.diff` in depth — the touched files, call sites, the platform reference file(s) from step 2 — for anything the changes since the last review broke or left unfinished, a fix included; then read the rest of `pr.diff` (the diff only, opening a file just to verify a candidate) for issues round one missed. Skip that second sweep, with `missed-issue sweep: skipped (PR > 1,500 lines)` in step 9, when the whole PR's `added + removed` exceeds 1,500. Produce findings in the `passes/shared.md` schema and severity scale, MEDIUM and above and QUESTIONs only (no LOW, nits included); anchor with `R<n>` numbers, never a `since.diff` `L<n>` (it counts lines in the baseline). A concern an in-scope thread already covers is that thread's verdict, not a new finding. **Escalated** re-reviews dispatch normally over `pr.diff`, the whole PR.
 
-Always dispatch (in full mode and under `--lite`):
-
-| Pass | Focus |
-|---|---|
-| Bug Hunter | Bug hunt — forgotten call sites, unhappy paths, wrong/non-exhaustive logic, contract mismatches, resource-lifecycle leaks, concurrency correctness — plus a dedicated adversarial error-handling lens: swallowed exceptions, inadequate error handling, unjustified fallbacks, overly broad catches. The highest-value pass. |
-| Code-Quality Reviewer | Code smells & hygiene, dead code, duplication, SOLID/naming/PR-scope standards, plus the platform checklist backstop (architecture, Compose/SwiftUI, DI, security, performance, a11y, localisation, build hygiene). |
+Always dispatch Bug Hunter and Code-Quality Reviewer (in full mode and under `--lite`).
 
 Dispatch conditionally, only when relevant to this diff (no row dispatches under `--lite`, even if its condition matches):
 
@@ -278,6 +273,8 @@ Under `--re-review`, only new findings qualify — never a thread verdict or a r
 - **Nothing survived steps 5–7 and no replies? Don't POST at all.** An empty Draft review would block the next run (see step 1's pending-review check); skip to step 9 and report "no findings, nothing posted." Under `--local` or `--dry-run`, still write `<run dir>/findings.md` (the body alone, per sub-step 2) before skipping. Body-list thread verdicts alone don't justify a review — step 9 prints them.
 
 **Anchoring.** Every inline comment must sit on a line inside the diff, or GitHub rejects the whole review: a `+` or context line uses `"side": "RIGHT"` with its new-file line number; a removed `-` line uses `"side": "LEFT"` with its old-file line number. A finding whose real location is outside the diff — a forgotten call site in an untouched file, a missing test file — goes on the diff line that caused it (e.g. the rename), naming the out-of-diff location(s) in the comment ("Still calls the old name: `Foo.kt:88`, `Bar.kt:12`"). A finding no diff line causes (PR scope, PR description) goes in the body's "Not tied to a diff line" list instead.
+
+**Read `<skill dir>/modes/output.md` now** — the comment format every inline comment follows, and step 9's summary format.
 
 **Body** — short, plain, written last:
 
@@ -344,135 +341,9 @@ Then, in this order:
 
    — and post it with `gh api graphql --input <run dir>/reply-<n>.json`. A failed reply never stops the rest, and never falls back to another mechanism: note it for step 9. For each entry with `reopen: true` whose reply attached, in both modes, write `<run dir>/reopen-<n>.json` (`{"query": "mutation($thread: ID!) { unresolveReviewThread(input: {threadId: $thread}) { thread { isResolved } } }", "variables": {"thread": "<thread_id>"}}`) and post it the same way — never a `resolveReviewThread`. **Draft mode stops here** — the replies sit in the pending review with the comments. **Live mode, if any reply failed:** don't submit — leave the review pending and tell the user in step 9 which replies are missing, so they can add them and submit it themselves. **Live mode, otherwise:** write `<run dir>/submit.json` (`{"event": "COMMENT", "body": "<summary body>"}`) and `gh api repos/<owner>/<repo>/pulls/<number>/reviews/<id>/events --method POST --input <run dir>/submit.json`. If that fails, the review stays pending: say so in step 9 rather than retrying another way.
 
-### Comment format
-
-Build every inline comment from the finding's fields: a header that says how serious it is, what kind of problem it is and what the author should do; one short paragraph; then the fix. Length scales with severity — a nit is a header and a suggestion, nothing more.
-
-| Severity | Label |
-|---|---|
-| 🔴 CRITICAL | must fix |
-| 🟠 HIGH | must fix |
-| 🟡 MEDIUM | should fix |
-| 🟢 LOW | consider |
-| 🟢 LOW with `nit: true` | optional |
-
-````
-<emoji> **<Severity> · <Category> · <label>** — <title>
-
-<body>
-
-**Fails when:** <failure_scenario>                 ← only when set
-
-```suggestion
-<fix.code>
-```                                                   ← kind: suggestion; a ```kotlin / ```swift block for kind: code; nothing for kind: none
-
-Ref: <doc URL>                                        ← only when `evidence` holds an official doc URL
-````
-
-`<Category>` is the `category` field in words: Bug, Error handling, Deprecation, Code quality, Tests, Comments, Type design. For a LOW finding whose `title` already says everything, drop the `body` paragraph. A finding step 5 softened keeps its conditional wording ("If `items` can be empty here, …"). A "Related existing comment" note from step 6 goes last.
-
-Example:
-
-````
-🔴 **Critical · Bug · must fix** — `items.first()` crashes when the cart is empty
-
-`CartRepository.fetchItems()` returns an empty list for new users (`CartRepository.kt:6`), so `first()` throws `NoSuchElementException` inside `viewModelScope`.
-
-**Fails when:** a new user opens the cart before the first sync.
-
-```suggestion
-            _state.value = CartUiState(items = items, featured = items.firstOrNull())
-```
-````
-
-````
-🟢 **Low · Code quality · optional** — Unused import `kotlinx.coroutines.delay`
-
-```suggestion
-```
-````
-
-Use `suggestion` when:
-- The fix is a 1–3 line drop-in replacement for the highlighted line(s)
-- No surrounding context needs to change
-- The correct code is unambiguous
-
-Use a language block (not suggestion) when:
-- The fix spans multiple non-contiguous locations
-- A design decision or explanation is more valuable than the exact code
-- The replacement requires context the author must supply
-
-**QUESTION findings** (severity `QUESTION` from Bug Hunter) are not defects — they flag an asymmetry with related logic that is probably fine but easy to misread, and ask the author to confirm or document the intent. Use this shape instead of the one above — no severity, no label, no fix:
-
-````
-**❓ Question: <the intent being confirmed, phrased as a question>**
-
-<2–3 sentences: what the diff does, the sibling it differs from (named by file/symbol), and how a later reader could misread the difference.>
-````
-
-Tone: findings, not verdicts. State the problem and its consequence; don't lecture. When something is a judgment call, say so ("Consider…" / "If X is intentional, ignore this"). Never pad the review with manufactured or speculative nitpicks to look thorough — a review with three real findings beats one with twenty trivia. A concrete, verifiable small catch (labeled optional) is not padding and stays welcome.
-
 ### 9. Summary
 
-After posting, print (heading depends on the resolved posting mode; append ` · lite` when `--lite` was resolved). If step 8 skipped posting because nothing survived, print `✅ No findings — nothing posted` in place of the heading and omit the posting-mode lines. Under `--local` or `--dry-run`, use `🧪 Local review — nothing posted` / `🧪 Dry run — nothing posted` as the heading, omit the posting-mode and Review URL lines, and, if the host reports token usage for the dispatched agents, add `Pass tokens: <sum>`:
-
-```
-✅ Draft review saved (NOT submitted)          [Draft mode]
-✅ Review posted — visible on the PR now       [Live mode]
-
-Posted (one line per inline comment, most severe first):
-  🔴 must fix    <file>:<line>   <title>
-  🟡 should fix  <file>:<line>   <title>
-  …
-Not tied to a diff line: <title>, <title>      [omit when none]
-Over the LOW cap (<low_cap>), in the body's list: <file>:<line> <title>, …   [omit when none]
-Applied directly: <file>:<line> <title>, …    [fix mode only]
-
-Re-review since <sha7>: quick | escalated (<n> lines)[ · missed-issue sweep: skipped (PR > 1,500 lines)]   [--re-review only, this block]
-Threads — yours:   <n> per verdict (`modes/re-review.md` section 5), zero parts omitted
-Threads — others:  <same>
-Threads — bots:    <same>
-Replies posted: <n>[ · failed: <url>, …]
-Reopened (were resolved, still not right): <url>, …   [omit when none; "Would reopen" under --local/--dry-run; visible now even in Draft]
-Safe to resolve: <url>, <url>, …              [still-unresolved threads judged addressed, pushback valid or not an issue]
-New findings: <n>                             [the inline comments above; replies aren't counted here]
-
-Findings:
-  🔴 Critical: <n>
-  🟠 High:     <n>
-  🟡 Medium:   <n>
-  🟢 Low:      <n>
-  ❓ Questions: <n>
-
-By category (the findings' `category` field; omit zero rows):
-  🐛 Bugs:            <n>
-  🧯 Error handling:  <n>
-  ⏳ Deprecations:    <n>
-  🧹 Code quality:    <n>
-  🧪 Tests:           <n>
-  💬 Comments:        <n>
-  🏗️  Type design:     <n>
-
-🔀 Merged across passes: <n>
-🔎 Re-verified: <n> confirmed · <n> softened · <n> dropped
-🔁 Duplicates skipped (already on PR): <n>
-🚫 Dropped for low confidence: <n>
-🥊 Debate: <n> upheld · <n> weakened · <n> refuted (<n> dropped)   [only if a debate ran]
-
-🔧 Fixes applied directly (--apply-safe-fixes): <n>          [only if fix mode was on]
-🔎 Validation: <command run and result, or "skipped: <reason>">   [only if fix mode was on]
-<git diff of the applied fixes> — uncommitted, not pushed       [only if fix mode applied any; the full diff, so each change can be checked]
-
-Review URL: https://github.com/<owner>/<repo>/pull/<number>
-
-The review is pending. Open the PR in GitHub to inspect, edit,       [Draft mode]
-or submit your comments when ready. (Pass --live to post directly next time.)
-💡 You reviewed this PR before (at <sha7>); --re-review checks your threads and only what changed since.   [only without --re-review, when you have an earlier review at another commit]
-The review is live — comments are already visible on the PR.        [Live mode]
-
-💡 For deeper platform coverage next run, install: <platform>: <skill source>, <platform>: <skill source>, ...   [only if step 2's "no skill installed for" list is non-empty]
-```
+Print the summary in `<skill dir>/modes/output.md`'s "Summary" format (read it now if step 8 didn't).
 
 **Debate offer (no `--debate`).** When this run saved a plain pending draft (no thread replies, no applied fixes) or ran under `--local`/`--dry-run`, and at least one finding was posted, ask once with `AskUserQuestion`: *"Debate this review? One more agent tries to disprove each finding and its fix (~230k tokens), then the draft is revised."* If the user says yes, follow `<skill dir>/modes/debate.md`, sections 1–3. In every other case, or if `AskUserQuestion` is unavailable or denied (`claude -p`, the evals), print `💡 Pass --debate to have every finding challenged before posting.` and finish. Never offer it after a Live post, since the comments are already public.
 
@@ -491,20 +362,3 @@ Nothing was posted to GitHub. The payload is at <run dir>/review.json.
 
 <full findings report>
 ```
-
-## Review passes
-
-Each pass's full prompt is its own file in `<skill dir>/passes/`, read by the pass itself — you never load or paste it:
-
-| Pass | File |
-|---|---|
-| *(every pass)* | `passes/shared.md` — rules, severity scale, confidence, JSON output schema |
-| Bug Hunter | `passes/bug-hunter.md` |
-| Code-Quality Reviewer | `passes/code-quality.md` |
-| Deprecation Scanner | `passes/deprecation-scanner.md` |
-| Test Analyzer | `passes/test-analyzer.md` |
-| Comment Analyzer | `passes/comment-analyzer.md` |
-| Type-Design Analyzer | `passes/type-design.md` |
-| Debater (`--debate` or step 9's offer only) | `passes/debater.md`, with its own output schema; procedure in `modes/debate.md` |
-
-Each file holds only what's pass-specific — persona, checklist, severity-tier meanings. The PR-specific inputs (intent, diff, repo root, reference paths) come from `context.md`; the rules, severity scale and output schema every pass follows come from `passes/shared.md`.
