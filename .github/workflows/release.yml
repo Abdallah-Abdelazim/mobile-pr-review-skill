@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          # Tags are bare semver (2.8.0), no "v" prefix.
+          prev=$(git tag --list --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+          IFS=. read -r major minor patch <<< "${prev:-0.0.0}"
+          case "$BUMP" in
+            major) next="$((major + 1)).0.0" ;;
+            minor) next="$major.$((minor + 1)).0" ;;
+            patch) next="$major.$minor.$((patch + 1))" ;;
+          esac
+
+          range=${prev:+$prev..}HEAD
+          git log "$range" --no-merges --pretty='- %s' > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::No commits since $prev; nothing to release"
+            exit 1
+          fi
+          if [ -n "$prev" ]; then
+            printf '\n**Full changelog:** https://github.com/%s/compare/%s...%s\n' "$GITHUB_REPOSITORY" "$prev" "$next" >> notes.md
+          fi
+
+          gh release create "$next" --target "$GITHUB_SHA" --title "$next" --notes-file notes.md
+          echo "Released $next (previous: ${prev:-none})" >> "$GITHUB_STEP_SUMMARY"
