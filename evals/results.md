@@ -1,6 +1,6 @@
 # Eval results
 
-Recall = must-find found / total. FP = false positives. Sev = must-finds at or above min severity.
+Recall = must-find found / total. FP = false positives. Sev = must-finds at or above min severity. Comments / max: before 2026-11-24 `total / Max comments`; from then `total (inline Lows) / Max low comments`. Review $ = the review run's cost from `run.sh`'s `summary.tsv` (grader cost is in Notes).
 
 | Date | Skill commit | Fixture | Recall | Sev | Should | FP | Extra | Comments / max | Readability | Pass tokens | Review $ | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|

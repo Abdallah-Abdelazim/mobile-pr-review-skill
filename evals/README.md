@@ -49,6 +49,6 @@ Run the whole set before and after a change that affects output (pass prompts, r
 
 If a run shows a fixture's `expected.md` is wrong (e.g. it rejects a valid anchor), fixing it is fine — but note the change in `results.md` beside the run that exposed it, so before/after numbers stay comparable.
 
-Step 6 (cross-check against existing PR comments) has no fixture: `--local` has no PR, so it skips that step. Covering it would take a sandbox GitHub PR with seeded comments, run with `--dry-run`. Re-review thread verification is covered locally through `--threads` (`android-rereview`), but fetching threads over GraphQL and posting replies in PR mode are not.
+Step 6 (cross-check against existing PR comments) has no fixture: `--local` has no PR, so it skips that step. Covering it would take a sandbox GitHub PR with seeded comments, run with `--dry-run`. Re-review thread verification is covered locally through `--threads` (`android-rereview`), but fetching threads over GraphQL and posting replies in PR mode are not. Neither is re-review's "already raised" check against earlier reviews' Minor findings lists (`--local` has no previous review body), nor the escalated re-review's Low cap.
 
-When adding a fixture, keep it small (2–4 files), make every seeded bug unambiguous from the diff plus the files shown, and add at least one "must not flag" trap.
+When adding a fixture, keep it small (2–4 files), make every seeded bug unambiguous from the diff plus the files shown, and add at least one "must not flag" trap. Set `## Max low comments` to the lower of the fixture's `low_cap` (from `prepare-diff.sh annotate`'s stats) and the Lows you'd accept; a quick-path re-review fixture gets 0.

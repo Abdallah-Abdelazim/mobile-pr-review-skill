@@ -74,6 +74,7 @@ Changing how a pass behaves: persona, process and pass-specific checks go in `pa
 - Step 8's numbered sub-steps (1 validate, 2 stop for `--local`/`--dry-run`, 3 build, 4 post, 5 re-review replies, reopens and Live submit) are not workflow steps 1–9.
 - `--local` has no `headRefOid`, PR author or existing comments — every step that uses them has a `--local` branch. It diffs commits only (`<base>...HEAD`); uncommitted changes aren't reviewed.
 - With no local clone, step 1 makes a blobless clone in the run dir (so passes can grep for call sites); only when that fails is the repo root "none" and files fetched one at a time through `gh api …/contents`. Step 9 and the Fallback delete the clone.
+- In the bash scripts, `! cmd` and `[ a ] && [ b ]` never trip `set -e`, so an assertion written that way can't fail. `test-prepare-diff.sh` had five such checks until 2026-11; write negatives as `cmd && exit 1` and comparisons as separate commands or an explicit `|| exit 1`. shellcheck (CI) flags the first form.
 - `--re-review` (`modes/re-review.md`) slices the incremental diff to the PR's own files (`prepare-diff.sh slice`) — `git diff <last> <head>` alone also carries every file a merged-in base branch changed. `pr.diff` stays the whole PR; the slice is `since.diff`, whose `R<n>` numbers match `pr.diff`'s but whose `L<n>` numbers count lines in the baseline, so they never anchor.
 
 ## Related Context
