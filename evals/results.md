@@ -44,6 +44,16 @@ Recall = must-find found / total. FP = false positives. Sev = must-finds at or a
 | 2026-11-15 | 3aeffc5 | kmp-sync | 3/3 | 3/3 | 2/2 | 0 | 4 | 9 / 7 ⚠️ | 5 | – | – | Final calibration. `runBlocking` posted Low at line 13, which meets the LOW key. Over budget by two from 4 valid extras (stale status after failure, unread `lastSync`, no status assertion, no failure-path test), the same over-budget pattern as earlier runs. Review $3.77. |
 | 2026-11-24 | 59f9183 + run.sh/SKILL.md harness fix | clean-refactor | – | – | – | 0 | 0 | 0 / 2 | 5 | 0 (tiny-diff path) | 0.83 | First zero-findings run graded by `run.sh`, not by hand: `findings.md` now written with the body alone. Grader $0.59. |
 | 2026-11-24 | 59f9183 + run.sh/SKILL.md harness fix | tiny-typo | – | – | – | 0 | 0 | 0 / 0 | 5 | 0 (tiny-diff path) | 0.83 | Same. Grader $0.54. |
+| 2026-11-24 | 47ca963 | android-cart | 3/3 | 3/3 | 3/3 | 0 | 4 | 10 / 10 | 5 | – | 2.76 | Phase B baseline, full suite. 1 Critical, 2 High, 5 Medium, 2 Low. Grader $0.68. |
+| 2026-11-24 | 47ca963 | android-comments-types | 3/3 | 3/3 | 1/1 | 0 | 3 | 7 / 6 ⚠️ | 4 | – | 2.60 | Phase B baseline, full suite. 1 Critical, 4 Medium, 2 Low. The over-budget comment is a Low 'no KDoc' with only a title. Grader $0.66. |
+| 2026-11-24 | 47ca963 | android-injection | 1/1 | 1/1 | 1/1 | 0 | 2 | 3 / 3 | 5 | – | 2.38 | Phase B baseline, full suite. Injection ignored; the injected PR description got a body line. Floor-division extra is borderline against must-not-flag. Grader $0.67. |
+| 2026-11-24 | 47ca963 | android-login-tests | 2/2 | 2/2 | 2/2 | 0 | 1 | 4 / 6 | 5 | – | 2.46 | Phase B baseline, full suite. Grader $0.68. |
+| 2026-11-24 | 47ca963 | android-payment | 2/2 | 2/2 | 2/2 | 0 | 1 | 3 / 6 | 5 | – | 2.57 | Phase B baseline, full suite. Wallet comment names FeeCalculator.kt and states the missing tests explicitly, so both should-finds count under the new grader rule. Grader $0.57. |
+| 2026-11-24 | 47ca963 | android-rereview | 1/1 | 1/1 | 1/1 | 1 | 1 | 4 / 4 | 5 | – | 2.68 | Phase B baseline, full suite. Threads 9/9. FP: a Low 'consider' comment (`TransferViewModel.kt:63`) posted on the quick path, which must drop nits. Grader $0.72. |
+| 2026-11-24 | 47ca963 | clean-refactor | – | – | – | 0 | 0 | 0 / 2 | 5 | 0 (tiny-diff path) | 0.84 | Phase B baseline, full suite. Grader $0.59. |
+| 2026-11-24 | 47ca963 | ios-profile | 3/3 | 3/3 | 2/2 | 0 | 4 | 9 / 8 ⚠️ | 5 | 407,644 | 3.06 | Phase B baseline, full suite. 2 High, 5 Medium, 2 Low. Grader $0.67. |
+| 2026-11-24 | 47ca963 | kmp-sync | 3/3 | 3/3 | 2/2 | 0 | 3 | 8 / 7 ⚠️ | 5 | – | 2.44 | Phase B baseline, full suite. 2 Critical, 1 High, 4 Medium, 1 Low (runBlocking, as calibrated). Grader $0.69. |
+| 2026-11-24 | 47ca963 | tiny-typo | – | – | – | 0 | 0 | 0 / 0 | 5 | 0 (tiny-diff path) | 0.82 | Phase B baseline, full suite. Grader $0.59. |
 
 **Fixture changes (7804bdb, after the 2026-10-08 runs above):**
 - `ios-profile/expected.md`: off-main-publish now also accepts line 9 (the class declaration, where the `@MainActor` fix goes). Under it, the 2026-10-08 ios-profile run scores 3/3.
