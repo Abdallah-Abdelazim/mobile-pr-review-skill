@@ -37,7 +37,7 @@ The skill has no separate agent files. The pass prompts, the mode procedures (`m
 
 Each pass costs roughly 70k tokens before it reads the diff, so the number of passes drives cost far more than the size of the diff. That's why passes only run when they have something to check: Test Analyzer when code or tests changed, Deprecation Scanner when an added line matches a known deprecated symbol, and the Comment and Type-Design Analyzers when comments or types changed.
 
-There are three cost tiers. A tiny diff (at most 30 changed lines in at most 2 files, no control-flow change, nothing on an auth, payment, persistence or concurrency path) is reviewed directly with no passes. The diff script prints `tiny_size=yes|no` for the size part, so that limit is never judged by eye. `--lite` runs 2 passes, Bug Hunter and Code-Quality Reviewer. Everything else gets the full dispatch. Diffs above about 1,500 changed lines split Bug Hunter into 2 or 3 shards.
+There are three cost tiers. A tiny diff (at most 30 changed lines in at most 2 files, no control-flow change, nothing on an auth, payment, persistence, crypto or concurrency path) is reviewed directly with no passes. The diff script prints `tiny_size=yes|no` for the size part, so that limit is never judged by eye. `--lite` runs 2 passes, Bug Hunter and Code-Quality Reviewer. Everything else gets the full dispatch. Diffs above about 1,500 changed lines split Bug Hunter into 2 or 3 shards.
 
 Bug Hunter and Code-Quality Reviewer find most of the issues, so they run on Opus. The four narrower passes run on Sonnet, and all six use high effort. The opt-in Debater also runs on Opus. On a host whose agent tool can't pick a model, passes run on the host's default.
 
@@ -95,7 +95,9 @@ This puts the skill in `.claude/skills/review-mobile-pr/` in the current project
 /review-mobile-pr <number> --debate            # one more agent tries to disprove every finding and its fix before posting
 /review-mobile-pr <number> --re-review         # after the author's fixes: check every review thread and what changed since the last review
 /review-mobile-pr <number> --re-review --full  # same, as a full multi-pass review of the whole PR (automatic above 400 changed lines)
+/review-mobile-pr <number> --re-review --quick # same, forcing the cheap single-agent path
 /review-mobile-pr --local [<base>]             # self-review the current branch vs <base> before opening a PR; no GitHub calls; commits only — uncommitted changes are ignored
+/review-mobile-pr --local --re-review <commit> --threads <file>   # local re-review against <commit>, threads read from <file>
 ```
 
 Flags combine, so `--lite --apply-safe-fixes` works.
@@ -123,7 +125,7 @@ It needs the [GitHub CLI](https://cli.github.com/) (`gh`) authenticated against 
 
 `evals/` has 10 fixtures with seeded bugs (Android, iOS, KMP, a clean refactor, a tiny diff, a prompt injection and a `--re-review` round), a setup script, a grader prompt, and `evals/run.sh`. The script runs the review and the grader on each fixture with `claude -p`, capping what each call can spend. Together they measure recall, false positives, comment count and token cost before and after a change. Results are in [`evals/results.md`](./evals/results.md), and [`evals/README.md`](./evals/README.md) explains how to run them. The evals don't ship with the skill.
 
-CI (`.github/workflows/ci.yml`, on Ubuntu and macOS) runs the `prepare-diff.sh` self-check, checks that every deprecation-table row matches a gate pattern in `deprecation-symbols.txt`, and fails if anything in the shipped skill references `evals/`. It doesn't run the evals.
+CI (`.github/workflows/ci.yml`, on Ubuntu and macOS) runs the `prepare-diff.sh` self-check and shellcheck, checks that every deprecation-table row matches a gate pattern in `deprecation-symbols.txt`, that the `android.md`/`ios.md` tables of contents match their headings, that every `CLAUDE.md` is a symlink to `AGENTS.md` and that every eval fixture builds, warns when a reference's facts are more than 150 days old, and fails if anything in the shipped skill references `evals/`. It doesn't run the evals.
 
 ## License
 
