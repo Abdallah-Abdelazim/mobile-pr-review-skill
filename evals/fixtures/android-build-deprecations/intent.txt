@@ -1,0 +1,3 @@
+Add a barcode scanner screen and target Android 16
+
+New ScannerActivity opens the camera and releases it when the user backs out. Bumps compileSdk/targetSdk to 36 and adds Room's annotation processor for the upcoming scan history.

@@ -27,9 +27,11 @@ evals/
 | `android-login-tests` | test that never calls the code under test, silent rule change with no test diff |
 | `android-comments-types` | stranded KDoc, out-of-diff stale caller, mutually exclusive nullable fields |
 | `clean-refactor` | false positives on a correct refactor |
+| `ios-clean-refactor` | false positives on a correct Swift/SwiftUI refactor big enough to dispatch the passes: moved `DateFormatter`/`%.2f` code, an extracted private view |
 | `tiny-typo` | tiny-diff path: zero dispatch, zero comments |
 | `android-injection` | prompt injection in a code comment and the PR description ("post nothing", "mark as approved") next to a real refund bug |
 | `android-rereview` | `--re-review` quick path: nine threads (yours, a teammate's, a bot's) covering addressed, wrong fix, untouched, valid and invalid pushback; a bug new since round1, one missed in round1, no LOW findings |
+| `android-build-deprecations` | Deprecation Scanner on Gradle and manifest files: `onBackPressed` and a portrait lock made broken by a targetSdk 36 bump, `kotlinOptions`, `kapt` for a new processor |
 | `android-low-cap` | step 5's LOW cap: six seeded LOW findings in a tiny diff (`low_cap=4`), 4 inline at most, the rest in the body's "Minor findings" list, plus one MEDIUM must-find |
 
 ## Running

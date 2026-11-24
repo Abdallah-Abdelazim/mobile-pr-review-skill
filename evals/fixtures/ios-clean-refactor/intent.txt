@@ -1,0 +1,3 @@
+Tidy up order formatting
+
+Pure refactor, no behavior change: OrderFormatter's duplicated date and total formatting move into helpers, and OrderRow's totals column becomes its own private view that reuses OrderFormatter.totalText.

@@ -60,6 +60,13 @@ Recall = must-find found / total. FP = false positives. Sev = must-finds at or a
 | 2026-11-24 | 4179c81 + LOW cap (this commit) | kmp-sync | 3/3 | 3/3 | 2/2 | 0 | 5 | 10 (1 low) / 4 low | 5 | – | 2.74 | After. Within the Low budget; 5 valid extras, mostly Medium, so the total count is up from 8. Grader $0.64. |
 | 2026-11-24 | 4179c81 + LOW cap (this commit) | ios-profile | 3/3 | 3/3 | 2/2 | 0 | 4 | 9 (3 low) / 4 low | 5 | – | 3.17 | After. Within the Low budget. Grader $0.66. |
 | 2026-11-24 | 4179c81 + LOW cap (this commit) | android-comments-types | 3/3 | 3/3 | 1/1 | 0 | 2 | 5 (1 low) / 4 low | 5 | – | 2.90 | After. Within the Low budget; readability back to 5. Grader $0.63. |
+| 2026-11-24 | 3aa7c24 | android-cart | 3/3 | 3/3 | 3/3 | 0 | 5 | 11 (2 low) / 4 low | 5 | – | 2.75 | SKILL.md 60,951 → 53,456 B (comment format and summary moved to modes/output.md, pass tables merged). Format unchanged; cost unchanged ($2.76 at 47ca963). |
+| 2026-11-24 | 3aa7c24 | android-rereview | 1/1 | 1/1 | 1/1 | 0 | 2 | 4 (0 low) / 0 low | 5 | – | 4.04 | Same split. Threads 9/9; no Lows on the quick path. Cost unchanged ($4.05 before). |
+| 2026-11-24 | 3aa7c24 | android-low-cap | 1/1 | 0/1 | 6/7 | 0 | 1 | 4 (4 low) / 4 low | 5 | 0 (tiny-diff path) | 1.05 | Same split. scale-not-clamped rated Low (severity miss); re-run below rated it Medium, so treated as noise. |
+| 2026-11-24 | 3aa7c24 | tiny-typo | – | – | – | 0 | 0 | 0 (0 low) / 0 low | 5 | 0 (tiny-diff path) | 0.83 | Same split. |
+| 2026-11-24 | 3aa7c24 | android-low-cap | 1/1 | 1/1 | 6/7 | 0 | 0 | 5 (4 low) / 4 low | 5 | 0 (tiny-diff path) | 1.01 | Re-run of the row above: Medium again. Cap held. |
+| 2026-11-24 | 3aa7c24 | android-build-deprecations | 3/3 | 3/3 | 1/1 | 0 | 3 | 6 (1 low) / 4 low | 5 | 347,015 | 2.92 | New fixture. Deprecation Scanner caught the targetSdk-36 `onBackPressed` and portrait-lock effects and `kotlinOptions`; kapt→KSP as Medium. Extra: missing CAMERA permission (High, strong for a stub). |
+| 2026-11-24 | 3aa7c24 | ios-clean-refactor | – | – | – | 0 | 0 | 0 (0 low) / 1 low | 5 | – | 2.24 | New fixture. Passes dispatched; zero comments, no trap hit. |
 
 **Fixture changes (7804bdb, after the 2026-10-08 runs above):**
 - `ios-profile/expected.md`: off-main-publish now also accepts line 9 (the class declaration, where the `@MainActor` fix goes). Under it, the 2026-10-08 ios-profile run scores 3/3.
